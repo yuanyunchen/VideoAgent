@@ -1,77 +1,12 @@
 """
-General utilities for VideoAgent.
+Parsing utilities for VideoAgent.
 """
 
-import json
-import logging
 import os
-import pickle
-import hashlib
-from typing import List, Dict, Any, Optional
-import numpy as np
+import re
+import json
+from typing import List, Dict, Any, Optional, Tuple
 
-class CacheManager:
-    """Simple cache manager for LLM and CLIP responses."""
-    
-    def __init__(self, llm_cache_file: str, clip_cache_file: str, use_cache: bool = True):
-        """Initialize cache manager."""
-        self.llm_cache_file = llm_cache_file
-        self.clip_cache_file = clip_cache_file
-        self.use_cache = use_cache
-        
-        # Load caches
-        self.llm_cache = self._load_cache(llm_cache_file) if use_cache else {}
-        self.clip_cache = self._load_cache(clip_cache_file) if use_cache else {}
-    
-    def _load_cache(self, cache_file: str) -> Dict:
-        """Load cache from file."""
-        if os.path.exists(cache_file):
-            try:
-                with open(cache_file, 'rb') as f:
-                    return pickle.load(f)
-            except (pickle.PickleError, EOFError):
-                pass
-        return {}
-    
-    def save_caches(self):
-        """Save caches to files."""
-        if not self.use_cache:
-            return
-            
-        os.makedirs(os.path.dirname(self.llm_cache_file), exist_ok=True)
-        os.makedirs(os.path.dirname(self.clip_cache_file), exist_ok=True)
-        
-        with open(self.llm_cache_file, 'wb') as f:
-            pickle.dump(self.llm_cache, f)
-        
-        with open(self.clip_cache_file, 'wb') as f:
-            pickle.dump(self.clip_cache, f)
-
-def setup_logger(name: str, output_dir: str, level: str = "INFO", 
-                enable_llm_logging: bool = False) -> logging.Logger:
-    """Setup logger for experiment."""
-    logger = logging.getLogger(name)
-    logger.setLevel(getattr(logging, level.upper()))
-    
-    # Clear existing handlers
-    logger.handlers.clear()
-    
-    # File handler only - no console output
-    os.makedirs(output_dir, exist_ok=True)
-    file_handler = logging.FileHandler(os.path.join(output_dir, "logging.log"))
-    file_handler.setLevel(getattr(logging, level.upper()))
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
-    
-    # LLM logger if enabled
-    if enable_llm_logging:
-        llm_handler = logging.FileHandler(os.path.join(output_dir, "llm.log"))
-        llm_handler.setLevel(logging.DEBUG)
-        llm_handler.setFormatter(formatter)
-        logger.addHandler(llm_handler)
-    
-    return logger
 
 def parse_video_annotation(annotation_file: str, video_list_file: Optional[str] = None, 
                          max_videos: int = -1) -> List[Dict[str, Any]]:
@@ -124,62 +59,18 @@ def parse_video_annotation(annotation_file: str, video_list_file: Optional[str] 
     
     return videos_info
 
-# ============================================================================
-# BACKWARD COMPATIBILITY FUNCTIONS
-# ============================================================================
-
-def create_logger(log_file: str) -> logging.Logger:
-    """Create logger (backward compatibility)."""
-    logger = logging.getLogger(f"VideoAgent_{os.path.basename(log_file)}")
-    logger.setLevel(logging.INFO)
-    
-    # Clear existing handlers
-    logger.handlers.clear()
-    
-    # File handler
-    os.makedirs(os.path.dirname(log_file), exist_ok=True)
-    handler = logging.FileHandler(log_file)
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-    
-    return logger
-
-def get_video_frames(video_path: str, interval: int = 30) -> Optional[List]:
-    """Load video frames (backward compatibility)."""
-    import cv2
-    
-    if not os.path.exists(video_path):
-        return None
-    
-    frames = []
-    cap = cv2.VideoCapture(video_path)
-    
-    frame_idx = 0
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-            
-        if frame_idx % interval == 0:
-            frames.append(frame)
-        
-        frame_idx += 1
-    
-    cap.release()
-    return frames if frames else None
-
-def get_tasks(video_list_file: Optional[str], max_videos: int):
-    """Get tasks (backward compatibility)."""
-    # This is a placeholder for backward compatibility
-    # In the new system, use parse_video_annotation instead
-    return [], {}
-
 
 def parse_text_find_number(text: str, key: str) -> int:
-    """Parse text to find number (backward compatibility)."""
-    import re
+    """
+    Parse text to find number for a given key.
     
+    Args:
+        text: Text to parse
+        key: Key to find (e.g., "final_answer", "confidence")
+        
+    Returns:
+        Extracted integer or -1 if not found
+    """
     # Handle JSON response wrapped in code blocks
     text_content = text.strip()
     if '```json' in text_content:
@@ -197,7 +88,6 @@ def parse_text_find_number(text: str, key: str) -> int:
     try:
         # Handle both single and double quotes in JSON
         json_content_fixed = json_content.replace("'", '"')
-        import json
         data = json.loads(json_content_fixed)
         if key in data:
             return int(data[key])
@@ -219,18 +109,17 @@ def parse_text_find_number(text: str, key: str) -> int:
     
     return -1
 
-def header_line(title: str) -> str:
-    """Format header line (backward compatibility)."""
-    return f"\n=== {title} ===\n"
 
-def line() -> str:
-    """Return line separator (backward compatibility)."""
-    return "\n" + "="*50 + "\n"
-
-def parse_analysis_and_json(text: str):
-    """Parse analysis and JSON (backward compatibility)."""
-    import re
+def parse_analysis_and_json(text: str) -> Tuple[str, Dict]:
+    """
+    Parse analysis text and extract JSON.
     
+    Args:
+        text: Text containing analysis and JSON
+        
+    Returns:
+        Tuple of (analysis_text, json_dict)
+    """
     # Handle JSON response wrapped in code blocks
     text_content = text.strip()
     if '```json' in text_content:
@@ -263,11 +152,6 @@ def parse_analysis_and_json(text: str):
     
     return text_content, {}
 
-def get_llm_response(system_prompt: str, user_prompt: str, images=None, model: str = None, 
-                    json_format: bool = False, logger=None) -> str:
-    """Get LLM response (backward compatibility)."""
-    from utils.AIML_API import get_llm_response as api_get_llm_response
-    return api_get_llm_response(model or "gpt-4o-mini-2024-07-18", user_prompt, images)
 
 def retrieve_frames_by_section(section_predictions: Dict[int, int], 
                              segment_descriptions: Dict[int, str]) -> List[int]:
@@ -305,3 +189,14 @@ def retrieve_frames_by_section(section_predictions: Dict[int, int],
                     new_indices.append(section_id * 10 + i)
     
     return sorted(list(set(new_indices)))
+
+
+def header_line(title: str) -> str:
+    """Format header line."""
+    return f"\n=== {title} ===\n"
+
+
+def line() -> str:
+    """Return line separator."""
+    return "\n" + "="*50 + "\n"
+

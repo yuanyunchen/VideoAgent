@@ -3,13 +3,36 @@ Configuration management for VideoAgent project.
 """
 
 import os
-import json
 import yaml
 from typing import Dict, Any
 
+
+def _load_env_file():
+    """Load environment variables from .env file if it exists."""
+    # Try multiple locations for .env file
+    possible_paths = [
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '.env'),
+        os.path.join(os.getcwd(), '.env'),
+    ]
+    
+    for env_file in possible_paths:
+        if os.path.exists(env_file):
+            with open(env_file, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, value = line.split('=', 1)
+                        os.environ.setdefault(key.strip(), value.strip())
+            break
+
+
+# Load .env file on module import
+_load_env_file()
+
+
 def load_config(config_name: str = "default") -> Dict[str, Any]:
     """
-    Load configuration from YAML file.
+    Load configuration from YAML file with environment variable overrides.
     
     Args:
         config_name: Name of configuration file (without .yaml extension)
@@ -25,10 +48,17 @@ def load_config(config_name: str = "default") -> Dict[str, Any]:
     
     try:
         with open(config_file, 'r') as f:
-            return yaml.safe_load(f)
+            config = yaml.safe_load(f)
     except (FileNotFoundError, yaml.YAMLError) as e:
         print(f"Error loading config: {e}")
         raise
+    
+    # Override with environment variables
+    config['aiml_api_key'] = os.environ.get('AIML_API_KEY', '')
+    config['aiml_base_url'] = os.environ.get('AIML_BASE_URL', 'https://api.aimlapi.com/v1')
+    
+    return config
+
 
 def list_configs() -> list:
     """List available configurations."""
@@ -43,6 +73,7 @@ def list_configs() -> list:
     
     return sorted(configs)
 
+
 def update_config(config: Dict[str, Any], **overrides) -> Dict[str, Any]:
     """Update configuration with overrides."""
     updated = config.copy()
@@ -51,16 +82,22 @@ def update_config(config: Dict[str, Any], **overrides) -> Dict[str, Any]:
             updated[key] = value
     return updated
 
+
 def save_config_to_output(config: Dict[str, Any], output_dir: str):
-    """Save configuration to output directory as YAML."""
+    """Save configuration to output directory as YAML (without sensitive data)."""
     os.makedirs(output_dir, exist_ok=True)
+    
+    # Create a copy without sensitive data
+    safe_config = config.copy()
+    if 'aiml_api_key' in safe_config:
+        safe_config['aiml_api_key'] = '***REDACTED***'
+    
     config_file = os.path.join(output_dir, "experiment_config.yaml")
     with open(config_file, 'w') as f:
-        yaml.dump(config, f, indent=2, default_flow_style=False)
+        yaml.dump(safe_config, f, indent=2, default_flow_style=False)
 
 
-
-# Backward compatibility constants - using default values
+# Default values for backward compatibility
 DEFAULT_SCHEDULER_MODEL = "gpt-4o-mini-2024-07-18"
 DEFAULT_VIEWER_MODEL = "gpt-4o-mini-2024-07-18"
 MAX_ROUNDS = 1
@@ -69,26 +106,32 @@ MIN_RETRIEVED_FRAMES = 2
 DEFAULT_INITIAL_FRAMES = 5
 REFERENCE_LENGTH = 50
 INPUT_FRAME_INTERVAL = 30
-AIML_API_KEY = "fb50dec85566407bbc25ce1d28828fe7"
-AIML_BASE_URL = "https://api.aimlapi.com/v1"
+
+# API credentials from environment
+AIML_API_KEY = os.environ.get('AIML_API_KEY', '')
+AIML_BASE_URL = os.environ.get('AIML_BASE_URL', 'https://api.aimlapi.com/v1')
+
+# LLM settings
 LLM_TEMPERATURE = 0.7
 LLM_MAX_TOKENS = 10000
-DATASET_DIR = "dataset"
+
+# Paths
+DATASET_DIR = "data"
 CACHE_DIR = "cache"
-OUTPUT_DIR = "output"
-VIDEO_DIR = "dataset/videos"
-ANNOTATION_FILE = "dataset/subset_anno.json"
-TEST_VIDEO_LIST_FILE = "dataset/test_one_video.txt"
+OUTPUT_DIR = "results"
+VIDEO_DIR = "data/videos"
+ANNOTATION_FILE = "data/annotations/subset_anno.json"
+TEST_VIDEO_LIST_FILE = "data/video_lists/test_one_video.txt"
+
+# Cache settings
 USE_CACHE = True
 CACHE_LLM_FILE = "cache/cache_llm.pkl"
 CACHE_CLIP_FILE = "cache/cache_clip.pkl"
+
+# Logging
 LOG_LEVEL = "INFO"
+
+# Processing
 DEFAULT_MAX_PROCESSES = 10
 DEFAULT_MAX_TEST_VIDEOS = -1
-DETAILED_CAPTION_PROMPT = f"""describe the scene in a clear, concise caption. Include key details such as:
-    - Main objects or people present (tag with #C if the action is done by the camera wearer, #O if done by someone else)
-    - Their spatial relationships.
-    - other visual elements. 
-    Focus on what is visually prominent and avoid speculation beyond what is shown. Do not provide any prediction of events happening. 
-    Keep the caption length close to {REFERENCE_LENGTH} words to control detail level."""
-CONFIDENCE_LEVEL_GUIDANCE = "When evaluating confidence, remain cautious and avoid overconfidence. If there's any uncertainty or need for more information, assign a confidence level of '2'. Prioritize accuracy by frequently using '2' when evidence is incomplete or unclear." 
+

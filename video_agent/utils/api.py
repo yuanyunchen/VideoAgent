@@ -4,17 +4,16 @@ Provides interfaces for text and image-based LLM interactions.
 """
 
 import base64
+import time
 import cv2
 import numpy as np
 from openai import OpenAI
 from typing import Union, List, Optional
+from datetime import datetime
 
-try:
-    # Try relative imports first (when used as package)
-    from .config import AIML_API_KEY, AIML_BASE_URL, LLM_TEMPERATURE, LLM_MAX_TOKENS, DEFAULT_SCHEDULER_MODEL
-except ImportError:
-    # Fall back to absolute imports (when run directly)
-    from utils.config import AIML_API_KEY, AIML_BASE_URL, LLM_TEMPERATURE, LLM_MAX_TOKENS, DEFAULT_SCHEDULER_MODEL
+from video_agent.utils.config import (
+    AIML_API_KEY, AIML_BASE_URL, LLM_TEMPERATURE, LLM_MAX_TOKENS, DEFAULT_SCHEDULER_MODEL
+)
 
 
 class AIMLClient:
@@ -22,15 +21,17 @@ class AIMLClient:
     Client for interacting with AIML API for text and image processing.
     """
     
-    def __init__(self, api_key: str = AIML_API_KEY, base_url: str = AIML_BASE_URL):
+    def __init__(self, api_key: str = None, base_url: str = None):
         """
         Initialize AIML client.
         
         Args:
-            api_key: AIML API key
-            base_url: AIML API base URL
+            api_key: AIML API key (defaults to env var)
+            base_url: AIML API base URL (defaults to env var)
         """
-        self.api = OpenAI(api_key=api_key, base_url=base_url)
+        self.api_key = api_key or AIML_API_KEY
+        self.base_url = base_url or AIML_BASE_URL
+        self.api = OpenAI(api_key=self.api_key, base_url=self.base_url)
         self.temperature = LLM_TEMPERATURE
         self.max_tokens = LLM_MAX_TOKENS
     
@@ -136,14 +137,25 @@ class AIMLClient:
 
 
 # Global client instance for backward compatibility
-_global_client = AIMLClient()
+_global_client = None
+
+
+def _get_client():
+    """Get or create global client instance."""
+    global _global_client
+    if _global_client is None:
+        _global_client = AIMLClient()
+    return _global_client
+
 
 # Global retry configuration
 RETRY_DELAY = 30  # seconds to wait between retries for rate limit errors
-MAX_RETRY_TIME = 3600  # maximum total time to spend retrying （1h)
+MAX_RETRY_TIME = 3600  # maximum total time to spend retrying (1h)
+
 
 def get_llm_response(model: str, query: str, images: Optional[List] = None, 
-                    temperature: Optional[float] = None, max_tokens: Optional[int] = None, logger=None) -> str:
+                    temperature: Optional[float] = None, max_tokens: Optional[int] = None, 
+                    logger=None) -> str:
     """
     Unified LLM response function with rate limit retry logic.
     
@@ -153,18 +165,18 @@ def get_llm_response(model: str, query: str, images: Optional[List] = None,
         images: Optional list of images
         temperature: Temperature override
         max_tokens: Max tokens override
+        logger: Optional logger
         
     Returns:
         LLM response text
     """
-    import time
-    from datetime import datetime
+    client = _get_client()
     
     # Update client settings if overrides provided
     if temperature is not None:
-        _global_client.temperature = temperature
+        client.temperature = temperature
     if max_tokens is not None:
-        _global_client.max_tokens = max_tokens
+        client.max_tokens = max_tokens
     
     # Log input if logger provided
     if logger:
@@ -172,7 +184,7 @@ def get_llm_response(model: str, query: str, images: Optional[List] = None,
         logger.info(f"[{timestamp}] === LLM INPUT ===")
         logger.info(f"Model: {model}")
         logger.info(f"Has Images: {len(images) if images else 0}")
-        logger.info(f"Query: {query}")  # Full query, no truncation
+        logger.info(f"Query: {query}")
     
     # Retry logic for rate limit errors
     start_time = time.time()
@@ -182,15 +194,15 @@ def get_llm_response(model: str, query: str, images: Optional[List] = None,
         try:
             # Get response
             if images:
-                response = _global_client.get_image_response(query, images, model)
+                response = client.get_image_response(query, images, model)
             else:
-                response = _global_client.get_text_response(query, model)
+                response = client.get_text_response(query, model)
             
             # Log output if logger provided
             if logger:
                 timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
                 logger.info(f"[{timestamp}] === LLM OUTPUT ===")
-                logger.info(f"Response: {response}")  # Full response, no truncation
+                logger.info(f"Response: {response}")
                 logger.info(f"Response Length: {len(response)} characters")
                 if retry_count > 0:
                     logger.info(f"Succeeded after {retry_count} retries")
@@ -226,18 +238,21 @@ def get_llm_response(model: str, query: str, images: Optional[List] = None,
                     logger.error(f"Non-rate-limit error: {error_str}")
                 raise e
 
+
 def get_text_response(user_prompt: str, model_name: str = DEFAULT_SCHEDULER_MODEL,
                      system_prompt: str = "", json_format: bool = False) -> str:
     """Legacy function for backward compatibility."""
-    return _global_client.get_text_response(user_prompt, model_name, system_prompt, json_format)
+    return _get_client().get_text_response(user_prompt, model_name, system_prompt, json_format)
+
 
 def get_image_response(user_prompt: str, image_or_paths: Union[str, np.ndarray, bytes, List],
                       model_name: str = DEFAULT_SCHEDULER_MODEL, system_prompt: str = "",
                       json_format: bool = False) -> str:
     """Legacy function for backward compatibility."""
-    return _global_client.get_image_response(user_prompt, image_or_paths, model_name, system_prompt, json_format)
+    return _get_client().get_image_response(user_prompt, image_or_paths, model_name, system_prompt, json_format)
+
 
 def image_to_bytes_str(image_or_path: Union[str, np.ndarray, bytes]) -> str:
     """Legacy function for backward compatibility."""
-    return _global_client._image_to_base64(image_or_path)
+    return _get_client()._image_to_base64(image_or_path)
 

@@ -1,55 +1,97 @@
-# VideoAgent 🎥🤖
+# VideoAgent
 
-A simplified video analysis system for question answering with YAML configuration management.
+A video analysis system for question answering with LLM-powered iterative refinement.
 
-[![Python 3.9](https://img.shields.io/badge/python-3.9-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
-## 🚀 Quick Start
+## Quick Start
 
 ### Step 1: Setup Dependencies
+
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd VideoAgent_Main
+cd VideoAgent
 
-# Install dependencies
-pip install openai opencv-python numpy tqdm pyyaml
+# Install as package (recommended)
+pip install -e .
+
+# Or install dependencies directly
+pip install -r requirements.txt
 ```
 
 ### Step 2: Configure API Keys
-```yaml
-# Edit configs/default.yaml or create your own config
-aiml_api_key: "your-api-key-here"
+
+```bash
+# Copy the example environment file
+cp .env.example .env
+
+# Edit .env and add your API key
+AIML_API_KEY=your-api-key-here
 ```
 
 ### Step 3: Run Experiments
 
-#### Using Shell Scripts (Recommended)
 ```bash
-# List available configurations
-python main.py --list-configs
+# Using the CLI
+python -m video_agent.cli --config default --max-videos 10
 
-# Run with default configuration
+# Using shell scripts
 ./scripts/run_default.sh
-
-# Run high accuracy analysis
-./scripts/run_high_accuracy.sh
-
-# Run fast performance test
-./scripts/run_fast_performance.sh
-
-# Test with single video (debugging)
-./scripts/run_single_video.sh
 ```
 
-#### Using Python API
+## Features
+
+- **YAML Configuration**: Simple YAML config files in `configs/` directory
+- **Iterative Refinement**: Multi-round analysis with confidence-based sampling
+- **Multiple Caption Methods**: Detailed, multi-level, or group captioning
+- **Smart Frame Sampling**: Intelligent frame selection based on analysis
+- **Performance Optimization**: Built-in caching and response reuse
+- **Multiprocessing Support**: Parallel video processing for faster experiments
+
+## Installation
+
+```bash
+# Method 1: Install as package
+pip install -e .
+
+# Method 2: Install dependencies only
+pip install -r requirements.txt
+
+# Setup data directories
+mkdir -p data/videos cache results
+
+# Make scripts executable
+chmod +x scripts/*.sh
+```
+
+## Usage
+
+### Command Line
+
+```bash
+# List available configurations
+python -m video_agent.cli --list-configs
+
+# Run with default configuration
+python -m video_agent.cli --config default
+
+# Override specific parameters
+python -m video_agent.cli --config default --max-videos 10 --scheduler-model gpt-4o
+
+# Enable LLM logging for debugging
+python -m video_agent.cli --config default --llm-logging
+
+# Use multiprocessing
+python -m video_agent.cli --config default --max-processes 4
+```
+
+### Python API
+
 ```python
-from utils.config import load_config
 from video_agent import VideoAgent
+from video_agent.utils.config import load_config
 
 # Load configuration
-config = load_config("high_accuracy")
+config = load_config("default")
 
 # Initialize VideoAgent
 agent = VideoAgent(config=config)
@@ -59,291 +101,148 @@ output_dir = agent.run_experiment()
 print(f"Results saved to: {output_dir}")
 ```
 
-#### Using Command Line
-```bash
-# Use specific configuration
-python main.py --config high_accuracy --max-videos 10
-
-# Override specific parameters
-python main.py --config default --scheduler-model gpt-4o --llm-logging
-
-# Mix configuration and overrides
-python main.py --config fast_performance --max-rounds 3 --caption-method detailed
-```
-
-## ✨ Features
-
-- **📋 YAML Configuration Management**: Simple YAML config files in `configs/` directory
-- **🔄 Iterative Refinement**: Multi-round analysis with confidence-based sampling
-- **🖼️ Multiple Caption Methods**: Choose between detailed, multi-level, or group captioning
-- **🎯 Smart Frame Sampling**: Intelligent frame selection with configurable methods
-- **⚡ Performance Optimization**: Built-in caching and streamlined processing
-- **🔧 Modular Design**: Clean separation of concerns with standardized interfaces
-- **📊 Comprehensive Logging**: Detailed experiment tracking with config saving
-- **📈 Progress Tracking**: Real-time progress bars with accuracy monitoring using tqdm
-- **🚀 Multiprocessing Support**: Parallel video processing for faster experiments
-
-## 🚀 Multiprocessing Support
-
-VideoAgent now supports parallel processing to significantly speed up experiments when processing multiple videos.
-
-### Configuration
-
-```yaml
-# In your config file (e.g., configs/default.yaml)
-max_processes: 4      # Number of parallel processes (default: 1)
-multi_process: true   # Enable multiprocessing (default: false)
-```
-
-### Command Line Usage
+### Shell Scripts
 
 ```bash
-# Use 4 processes for parallel processing
-python main.py --config default --max-processes 4
+# Default experiment
+./scripts/run_default.sh
 
-# Disable multiprocessing (single process mode)
-python main.py --config default --no-multiprocess
-
-# Auto-detect CPU count and use multiprocessing
-python main.py --config default --max-processes 0
+# Test experiment with custom models
+./scripts/test.sh
 ```
 
-### Performance Benefits
+## Project Structure
 
-- **Speed**: Process multiple videos simultaneously
-- **Efficiency**: Better CPU utilization for I/O-bound tasks
-- **Scalability**: Automatic process count detection based on CPU cores
-- **Safety**: Automatic fallback to single process mode if multiprocessing fails
-
-### Important Notes
-
-- Progress updates may be less frequent in multiprocessing mode
-- Each process has its own memory space and logging
-- Recommended process count: 2-4 for most systems
-- For very large datasets, consider using fewer processes to avoid memory issues
-
-### Testing Multiprocessing
-
-```bash
-# Test multiprocessing functionality
-python test_multiprocess.py
-
-# Compare single vs multi-process performance
-python main.py --config default --max-videos 10 --max-processes 1
-python main.py --config default --max-videos 10 --max-processes 4
+```
+VideoAgent/
+├── .env.example              # Environment variable template
+├── pyproject.toml            # Python packaging configuration
+├── requirements.txt          # Dependencies
+├── configs/                  # YAML configuration files
+│   └── default.yaml
+├── scripts/                  # Shell scripts
+│   ├── run_default.sh
+│   └── test.sh
+├── video_agent/              # Main Python package
+│   ├── __init__.py
+│   ├── cli.py                # Command-line interface
+│   ├── agent.py              # Main VideoAgent class
+│   ├── core/                 # Core data structures
+│   │   └── video_memory.py
+│   ├── processors/           # Processing modules
+│   │   ├── caption_processor.py
+│   │   └── question_processor.py
+│   └── utils/                # Utilities
+│       ├── api.py            # LLM API interface
+│       ├── config.py         # Configuration management
+│       ├── cache.py          # Caching
+│       ├── logging_utils.py  # Logging
+│       ├── video.py          # Video processing
+│       └── parsing.py        # Text parsing
+├── data/                     # Input data
+│   ├── annotations/          # JSON annotations
+│   ├── video_lists/          # Video ID lists
+│   └── videos/               # Video files
+├── cache/                    # Response cache (gitignored)
+└── results/                  # Experiment results (gitignored)
 ```
 
-## 🛠️ Installation
-
-```bash
-# 1. Clone the repository
-git clone <repository-url>
-cd VideoAgent_Main
-
-# 2. Install dependencies
-pip install openai opencv-python numpy tqdm pyyaml
-
-# 3. Setup data directories
-mkdir -p dataset/videos cache output
-
-# 4. Make scripts executable
-chmod +x scripts/*.sh
-
-# 5. Verify installation
-python main.py --list-configs
-```
-
-## 🔧 Configuration System
+## Configuration
 
 ### Available Configurations
 
 ```bash
-python main.py --list-configs
+python -m video_agent.cli --list-configs
 ```
 
-**Built-in Configurations:**
-- `default`: Balanced settings for general use
-- `high_accuracy`: Maximum accuracy with thorough analysis  
-- `fast_performance`: Speed-optimized for quick processing
+### Configuration Options
 
-### Configuration Structure
-
-All configurations are YAML files in the `configs/` directory:
+Key configuration parameters in `configs/default.yaml`:
 
 ```yaml
-scheduler_model: "gpt-4o-mini-2024-07-18"
-viewer_model: "gpt-4o-mini-2024-07-18"
-max_rounds: 1
-caption_method: "multi_level"
-video_processing_method: "standard"
-experiment_name: "default_experiment"
+# Models
+scheduler_model: "gpt-4o-mini-2024-07-18"  # Model for Q&A
+viewer_model: "gpt-4o-mini-2024-07-18"     # Model for captions
+
+# Processing
+max_rounds: 5                # Maximum analysis rounds
+max_test_videos: -1          # Number of videos (-1 = all)
+max_processes: 10            # Parallel processes
+
+# Paths
+output_dir: "results"
+video_dir: "data/videos"
+annotation_file: "data/annotations/subset_anno.json"
 ```
 
-### Creating Custom Configurations
+### Environment Variables
 
-1. **Copy an existing configuration**
-   ```bash
-   cp configs/default.yaml configs/my_config.yaml
-   ```
-
-2. **Edit the parameters**
-   ```yaml
-   scheduler_model: "gpt-4o"
-   max_rounds: 5
-   experiment_name: "my_experiment"
-   ```
-
-3. **Use your configuration**
-   ```bash
-   python main.py --config my_config
-   ```
-
-## 🏗️ Architecture
-
-### Project Structure
-
-```
-VideoAgent_Main/
-├── configs/                    # YAML configuration files
-│   ├── default.yaml            # Default balanced configuration
-│   ├── high_accuracy.yaml      # Maximum accuracy settings
-│   └── fast_performance.yaml   # Speed-optimized settings
-├── scripts/                    # Ready-to-use shell scripts
-│   ├── run_default.sh          # Basic experiment runner
-│   ├── run_high_accuracy.sh    # High accuracy analysis
-│   ├── run_fast_performance.sh # Fast processing
-│   ├── run_model_comparison.sh # Compare different models
-│   └── run_single_video.sh     # Single video debugging
-├── core/                       # Core data structures
-│   └── video_memory.py         # Video state management
-├── processors/                 # Processing modules  
-│   ├── caption_processor.py    # Caption generation (detailed/multi_level/group)
-│   └── question_processor.py   # Q&A and confidence evaluation
-├── utils/                      # Utility modules
-│   ├── config.py               # Configuration management
-│   ├── AIML_API.py             # LLM API interface
-│   ├── utils_clip.py           # CLIP embeddings and retrieval
-│   └── general.py        # General utilities
-├── video_agent.py              # Main orchestrator class
-└── main.py                     # CLI interface with config management
-```
-
-## 📜 Shell Scripts
-
-### Available Scripts
-
-| Script | Purpose | Configuration |
-|--------|---------|--------------|
-| `run_default.sh` | Basic experiment | Default settings |
-| `run_high_accuracy.sh` | Maximum accuracy | High accuracy config |
-| `run_fast_performance.sh` | Speed optimized | Fast performance config |
-| `run_model_comparison.sh` | Compare models | Multiple model combos |
-| `run_single_video.sh` | Debug single video | Debug-friendly settings |
-
-### Usage Examples
+Set these in your `.env` file:
 
 ```bash
-# Run default experiment
-./scripts/run_default.sh
-
-# High accuracy analysis with logging
-./scripts/run_high_accuracy.sh
-
-# Fast processing for large datasets
-./scripts/run_fast_performance.sh
-
-# Debug single video with detailed logs
-./scripts/run_single_video.sh
+AIML_API_KEY=your_api_key_here
+AIML_BASE_URL=https://api.aimlapi.com/v1  # Optional
 ```
 
-## 🎛️ Caption Methods
-
-### Available Methods
-
-1. **`detailed`**: Focused visual descriptions
-   - Single-level caption generation
-   - Emphasis on visual elements
-   - Good for basic analysis
-
-2. **`multi_level`**: Comprehensive analysis (Default)
-   - Visual descriptions + event understanding
-   - Hierarchical information structure
-   - Best for complex question answering
-
-3. **`group`**: Efficient batch processing
-   - Streamlined caption generation
-   - Optimized for speed
-   - Good for large-scale experiments
-
-## 📊 Output Structure
+## Output Structure
 
 ```
-output/
-└── experiment_name__viewer_model__scheduler_model/
-    ├── experiment_config.json   # Configuration used for this experiment
-    ├── logging.log             # Experiment logs
-    ├── llm.log                 # LLM interaction logs (optional)
-    └── videos/                 # Per-video analysis
-        └── video_id/
-            ├── frames/         # Sampled frames
-            ├── memory.txt      # Video memory state
-            ├── result.json     # Video-specific results
-            └── logging.log     # Video processing logs
+results/
+└── experiment_name__model_info/
+    ├── result.json              # Aggregated results
+    ├── accuracy.txt             # Performance metrics
+    ├── experiment_config.yaml   # Saved configuration
+    ├── logging.log              # Experiment logs
+    └── videos/
+        └── [video_id]/
+            ├── frames/          # Sampled frames
+            ├── memory.txt       # Video memory state
+            ├── question.txt     # Formatted question
+            ├── result.json      # Video results
+            └── logging.log      # Video logs
 ```
 
-## 🔧 Troubleshooting
+## Multiprocessing
 
-### Common Issues
+VideoAgent supports parallel processing for faster experiments:
 
-1. **Configuration Issues**
-   ```bash
-   # List available configs
-   python main.py --list-configs
-   
-   # Test specific config
-   python main.py --config default --help
-   ```
+```bash
+# Use 4 parallel processes
+python -m video_agent.cli --config default --max-processes 4
 
-2. **Missing Dependencies**
-   ```bash
-   # Install all dependencies
-   pip install openai opencv-python numpy tqdm
-   ```
+# Disable multiprocessing
+python -m video_agent.cli --config default --no-multiprocess
+```
 
-3. **Shell Script Permission Issues**
-   ```bash
-   chmod +x scripts/*.sh
-   ```
+Performance notes:
+- Recommended process count: 2-4 for most systems
+- Progress updates may be less frequent in multiprocessing mode
+- Each process has its own memory space and logging
 
-4. **API Key Issues**
-   ```yaml
-   # Edit configs/default.yaml and set your API key
-   aiml_api_key: "your-api-key-here"
-   ```
+## Troubleshooting
 
-5. **Configuration File Issues**
-   ```bash
-   # Validate YAML syntax
-   python -m yaml.tool configs/default.yaml
-   ```
+### API Key Issues
 
-## 🤝 Contributing
+```bash
+# Check if API key is set
+echo $AIML_API_KEY
 
-1. **Fork the repository**
-2. **Setup dependencies**: `pip install openai opencv-python numpy tqdm`
-3. **Test with configurations**: `python main.py --list-configs`
-4. **Create a feature branch**: `git checkout -b feature-name`
-5. **Commit changes**: `git commit -am 'Add new feature'`
-6. **Push to branch**: `git push origin feature-name`
-7. **Submit a Pull Request**
+# Set API key
+export AIML_API_KEY=your_key_here
+```
 
-## 📝 License
+### Permission Issues
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+```bash
+chmod +x scripts/*.sh
+```
 
-## 🙏 Acknowledgments
+### Missing Dependencies
 
-- OpenAI for the GPT models and API
-- AIML API for model access infrastructure  
-- OpenCV community for video processing tools
+```bash
+pip install -r requirements.txt
+```
 
+## License
+
+This project is licensed under the MIT License.

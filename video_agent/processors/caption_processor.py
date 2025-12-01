@@ -5,8 +5,9 @@ Caption processor for video frame analysis.
 import json
 import time
 from typing import Dict, Any, List
-from core.video_memory import VideoMemory
-from utils.AIML_API import get_llm_response as api_get_llm_response
+
+from video_agent.core.video_memory import VideoMemory
+from video_agent.utils.api import get_llm_response
 
 
 class CaptionProcessor:
@@ -20,7 +21,7 @@ class CaptionProcessor:
     
     def generate_captions(self, video_memory: VideoMemory, logger=None) -> None:
         """
-        Generate captions for video frames - restored from original main.py logic.
+        Generate captions for video frames.
         
         Args:
             video_memory: VideoMemory instance to update with captions
@@ -46,7 +47,7 @@ class CaptionProcessor:
     
     def _write_group_detailed_captions(self, memory: VideoMemory, new_idx: List[int], viewer_model: str, logger=None) -> str:
         """
-        Generate detailed captions for frame groups - restored from original main.py.
+        Generate detailed captions for frame groups.
         
         Args:
             memory: VideoMemory instance
@@ -59,9 +60,6 @@ class CaptionProcessor:
         """
         # Sort the new indices to maintain chronological order
         new_idx.sort()
-
-        # Construct the system prompt
-        system_prompt = "You are an expert video analyst tasked with generating detailed captions for a sequence of video frames."
 
         # Construct the user prompt with the list of frames
         frames_list = ", ".join([f"Frame {idx}" for idx in new_idx])
@@ -83,7 +81,7 @@ class CaptionProcessor:
 
         # Send all images to the LLM together
         try:
-            response = api_get_llm_response(
+            response = get_llm_response(
                 model=viewer_model,
                 query=user_prompt,
                 images=images,
@@ -148,7 +146,7 @@ class CaptionProcessor:
     
     def _write_multi_level_captions(self, memory: VideoMemory, new_idx: List[int], logger=None) -> str:
         """
-        Generate multi-level captions with visual and event descriptions - restored from original main.py.
+        Generate multi-level captions with visual and event descriptions.
         
         Args:
             memory: VideoMemory instance
@@ -163,12 +161,8 @@ class CaptionProcessor:
         # Step 1: Generate detailed captions for new frames (visual-level only)
         self._write_group_detailed_captions(memory, new_idx, viewer_model, logger)
 
-        # Step 2: Use the current overview and events (if any) along with the new detailed captions
-        # to generate an updated high-level overview of events and updated event descriptions for the new frames.
-        system_prompt = (
-            "You are an expert video analyst who creates high-level descriptions of video and frames. "
-        )
-        
+        # Step 2: Use the current overview and events along with the new detailed captions
+        # to generate an updated high-level overview and event descriptions
         new_frames_list = ", ".join([f"{idx}" for idx in new_idx])
         images = [memory.video_frames[idx] for idx in new_idx]
         
@@ -196,7 +190,7 @@ class CaptionProcessor:
         
         # Get the updated overview and events from the LLM
         try:
-            response = api_get_llm_response(
+            response = get_llm_response(
                 model=viewer_model,
                 query=user_prompt,
                 images=images,
@@ -239,9 +233,7 @@ class CaptionProcessor:
             
             # Update memory with overview and events
             memory.event_descriptions = updated_overview
-            memory.overview = updated_overview  # Also set overview for backward compatibility
-            if not hasattr(memory, 'events'):
-                memory.events = {}
+            memory.overview = updated_overview
             memory.events.update(updated_events)
             
         except Exception as e:
@@ -268,7 +260,7 @@ class CaptionProcessor:
                 
             frame = video_memory.sampled_frames[i]
             
-            response = api_get_llm_response(
+            response = get_llm_response(
                 model=self.config.get("viewer_model", "gpt-4o-mini-2024-07-18"),
                 query=prompt,
                 images=[frame],
@@ -291,4 +283,5 @@ class CaptionProcessor:
         
         if new_idx:
             self._write_group_detailed_captions(video_memory, new_idx, 
-                                               self.config.get("viewer_model", "gpt-4o-mini-2024-07-18"), logger) 
+                                               self.config.get("viewer_model", "gpt-4o-mini-2024-07-18"), logger)
+

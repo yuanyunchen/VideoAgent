@@ -1,304 +1,240 @@
-PROJECT STRUCTURE - VideoAgent (Standardized)
+PROJECT STRUCTURE - VideoAgent (v1.0.0)
 ===============================================
 
-VideoAgent_Main/
-├── 📄 config.py                   # Centralized configuration management
-├── 📄 video_agent.py              # Main VideoAgent orchestrator class
-├── 📄 main.py                     # CLI entry point with argument parsing
-├── 📄 parse_data.py               # Data processing and validation utilities
-├── 📄 test_import.py              # Import validation test script
-├── 📄 __init__.py                 # Package initialization
+VideoAgent/
+├── .gitignore                    # Git ignore rules
+├── .env.example                  # Environment variable template
+├── pyproject.toml                # Modern Python packaging configuration
+├── README.md                     # Project documentation
+├── requirements.txt              # Python dependencies
+├── STRUCTURE.txt                 # This file
 │
-├── 📁 core/                       # Core data structures and state management
-│   ├── video_memory.py            # VideoMemory class for frame and analysis state
-│   └── __init__.py                # Core module exports
+├── configs/                      # Configuration files
+│   ├── default.yaml              # Default experiment configuration
+│   └── models.yaml               # Model pricing and capability reference
 │
-├── 📁 processors/                 # Specialized processing modules
-│   ├── caption_processor.py       # CaptionProcessor for frame analysis
-│   ├── question_processor.py      # QuestionProcessor for Q&A and evaluation
-│   └── __init__.py                # Processor module exports
+├── scripts/                      # Shell scripts and utilities
+│   ├── run_default.sh            # Default experiment runner
+│   ├── test.sh                   # Test experiment runner
+│   ├── extract_invalid_videos.py # Extract failed video cases
+│   └── template/
+│       └── eval.sh               # Evaluation script template
 │
-├── 📁 utils/                      # Utility modules and helpers
-│   ├── AIML_API.py               # AIMLClient for LLM API interactions
-│   ├── utils_clip.py             # CLIPEmbeddingManager for frame retrieval
-│   ├── general.py          # CacheManager and general utilities
-│   └── __init__.py               # Utility module exports
+├── video_agent/                  # Main Python package
+│   ├── __init__.py               # Package initialization and public API
+│   ├── cli.py                    # Command-line interface
+│   ├── agent.py                  # Main VideoAgent orchestrator class
+│   │
+│   ├── core/                     # Core data structures
+│   │   ├── __init__.py
+│   │   └── video_memory.py       # VideoMemory class for frame and analysis state
+│   │
+│   ├── processors/               # Specialized processing modules
+│   │   ├── __init__.py
+│   │   ├── caption_processor.py  # CaptionProcessor for frame analysis
+│   │   └── question_processor.py # QuestionProcessor for Q&A and evaluation
+│   │
+│   └── utils/                    # Utility modules
+│       ├── __init__.py
+│       ├── api.py                # AIMLClient for LLM API interactions
+│       ├── config.py             # Configuration management
+│       ├── cache.py              # CacheManager for response caching
+│       ├── logging_utils.py      # Logging utilities
+│       ├── video.py              # Video processing utilities
+│       └── parsing.py            # Text and JSON parsing utilities
 │
-├── 📁 dataset/                    # Input data directory
-│   ├── subset_anno.json          # Video annotations and questions
-│   ├── lavila_subset.json        # Pre-computed LaViLa captions
-│   ├── test_one_video.txt        # Test video list
-│   └── videos/                   # Video files (not in repository)
+├── data/                         # Input data directory
+│   ├── annotations/
+│   │   └── subset_anno.json      # Video annotations and questions
+│   ├── video_lists/
+│   │   ├── subset.txt            # Full video list
+│   │   ├── subset_valid.txt      # Validated video list
+│   │   └── test_one_video.txt    # Single video test list
+│   └── videos/                   # Video files (symlink to dataset/videos)
 │
-├── 📁 cache/                      # Performance optimization cache
+├── dataset/                      # Legacy data directory (videos only)
+│   └── videos/                   # Actual video files
+│
+├── cache/                        # Performance optimization cache (gitignored)
 │   ├── cache_llm.pkl             # LLM response cache
 │   └── cache_clip.pkl            # CLIP embedding cache
 │
-├── 📁 output/                     # Experiment results directory
-│   └── [experiment_name]/        # Per-experiment outputs
-│       ├── result.json           # Aggregated experiment results
-│       ├── accuracy.txt          # Performance metrics and statistics
-│       ├── logging.log           # Main experiment logs
-│       ├── llm.log              # LLM interaction logs (optional)
-│       └── videos/               # Individual video analysis results
-│           └── [video_id]/       # Per-video outputs
-│               ├── frames/       # Sampled frames as PNG files
-│               ├── memory.txt    # Complete video memory state
-│               ├── question.txt  # Formatted question with options
-│               ├── result.json   # Video-specific results
-│               └── logging.log   # Video processing logs
-│
-└── 📁 __pycache__/               # Python bytecode cache (auto-generated)
+└── results/                      # Experiment results (gitignored)
+    └── [experiment_name]/        # Per-experiment outputs
+        ├── logging.log           # Full evaluation log
+        ├── metrics.csv           # Performance metrics table (comprehensive)
+        ├── summary.txt           # Human-readable summary with analysis
+        ├── stats.json            # Full statistics (JSON format)
+        ├── answer.json           # Detailed predictions with Q&A
+        ├── result.json           # Aggregated results (backward compatible)
+        ├── accuracy.txt          # Accuracy metrics (backward compatible)
+        ├── experiment_config.yaml # Saved configuration
+        └── videos/               # Individual video results
+            └── [video_id]/
+                ├── frames/       # Sampled frames as PNG files
+                ├── memory.txt    # Video memory state
+                ├── question.txt  # Formatted question
+                ├── result.json   # Video-specific results
+                └── logging.log   # Video processing logs
 
 
-CORE COMPONENTS (Standardized Architecture)
-==========================================
+CORE COMPONENTS
+===============
 
-1. config.py - Centralized Configuration Management
----------------------------------------------------
-   Purpose: Single source of truth for all configuration parameters
-   
-   Configuration Categories:
-   - Model Settings:        DEFAULT_SCHEDULER_MODEL, DEFAULT_VIEWER_MODEL
-   - Processing Parameters: MAX_ROUNDS, MAX_RETRIEVED_FRAMES, DEFAULT_INITIAL_FRAMES
-   - API Configuration:     AIML_API_KEY, AIML_BASE_URL, LLM_TEMPERATURE
-   - File Paths:           VIDEO_DIR, ANNOTATION_FILE, CACHE_DIR, OUTPUT_DIR
-   - Caching Options:      USE_CACHE, CACHE_LLM_FILE, CACHE_CLIP_FILE
-   - Logging Settings:     LOG_LEVEL
-   - Processing Options:   DEFAULT_MAX_PROCESSES, INPUT_FRAME_INTERVAL
-
-2. video_agent.py - Main Orchestrator Class
---------------------------------------------
+1. video_agent/agent.py - Main Orchestrator
+-------------------------------------------
    VideoAgent Class:
    - Coordinates entire video analysis pipeline
    - Manages experiment lifecycle and configuration
    - Handles multi-processing and result aggregation
    
    Key Methods:
-   - run_experiment()              : Execute complete experiment with configuration
-   - process_single_video()        : Process individual video through full pipeline
-   - _run_analysis_pipeline()      : Iterative analysis with confidence evaluation
-   - _create_output_directory()    : Generate structured output directories
-   - _setup_logging()             : Configure experiment and LLM logging
-   - _process_videos()            : Coordinate video processing (single/multi-process)
+   - run_experiment()              : Execute complete experiment
+   - _process_video()              : Process individual video
+   - _process_videos_sequential()  : Sequential video processing
+   - _process_videos_multiprocessing() : Parallel video processing
+   - _save_global_results()        : Generate experiment metrics
 
-3. core/video_memory.py - Video State Management
------------------------------------------------
+2. video_agent/core/video_memory.py - Video State
+-------------------------------------------------
    VideoMemory Class:
    - Encapsulates video frames and analysis state
    - Manages sampled frame indices and captions
    - Maintains overview and event descriptions
    
    Key Methods:
-   - add_sampled_frames()         : Add new frame indices to memory
-   - update_caption()             : Store frame caption
-   - update_event()               : Store frame event description
-   - update_overview()            : Update overall video understanding
-   - output()                     : Export memory state and frames to disk
-   - __str__()                    : Format memory content for display
+   - add_sampled_frames()          : Add new frame indices
+   - update_caption()              : Store frame caption
+   - update_event()                : Store event description
+   - update_overview()             : Update video overview
+   - save_to_directory()           : Export state to disk
 
-4. processors/caption_processor.py - Caption Generation
--------------------------------------------------------
+3. video_agent/processors/caption_processor.py - Caption Generation
+-------------------------------------------------------------------
    CaptionProcessor Class:
-   - Handles frame caption generation and multi-level analysis
-   - Supports both detailed and multi-level caption functions
-   - Manages LaViLa pre-computed caption loading
+   - Handles frame caption generation
+   - Supports multi-level caption functions
    
    Key Methods:
-   - generate_detailed_captions()    : Create visual descriptions for frames
-   - generate_multi_level_captions() : Combined visual + event understanding
-   - load_lavila_captions()          : Load pre-computed captions from file
-   - _parse_and_store_captions()     : Parse LLM responses and update memory
-   - _generate_event_descriptions()  : High-level event analysis
+   - generate_captions()              : Generate captions for frames
+   - _write_multi_level_captions()    : Combined visual + event understanding
+   - _write_group_detailed_captions() : Batch caption generation
 
-5. processors/question_processor.py - Q&A and Evaluation
---------------------------------------------------------
+4. video_agent/processors/question_processor.py - Q&A and Evaluation
+--------------------------------------------------------------------
    QuestionProcessor Class:
    - Manages question answering and confidence evaluation
-   - Handles intelligent frame resampling based on analysis
-   - Evaluates answer trustworthiness and completeness
+   - Handles intelligent frame resampling
    
    Key Methods:
-   - answer_question()               : Generate answer from video analysis
-   - evaluate_confidence()           : Assess answer confidence (1-3 scale)
-   - generate_segment_steps()        : Smart frame resampling strategy
-   - _process_segment_response()     : Parse segment selection and frame counts
+   - answer_question()             : Generate answer from video analysis
+   - evaluate_confidence()         : Assess answer confidence (1-3 scale)
+   - generate_segment_steps()      : Smart frame resampling strategy
 
-6. utils/AIML_API.py - LLM API Interface
-----------------------------------------
+5. video_agent/utils/api.py - LLM API Interface
+-----------------------------------------------
    AIMLClient Class:
    - Unified interface for text and image-based LLM interactions
-   - Handles multiple input types (paths, numpy arrays, bytes)
-   - Manages API configuration and error handling
+   - Handles API configuration and rate limiting
    
-   Key Methods:
-   - get_text_response()             : Text-only LLM requests
-   - get_image_response()            : Vision-language model requests
-   - _image_to_base64()             : Image format conversion
-   
-   Legacy Functions (for backward compatibility):
-   - get_text_response(), get_image_response(), image_to_bytes_str()
+   Key Functions:
+   - get_llm_response()            : Unified LLM interface with retry logic
+   - get_text_response()           : Text-only LLM requests
+   - get_image_response()          : Vision-language model requests
 
-7. utils/general.py - General Utilities
----------------------------------------------
-   CacheManager Class:
-   - Manages persistent LLM response caching with SHA256 hashing
-   - Handles cache file corruption and initialization
-   
-   Utility Functions:
-   - get_llm_response()              : Unified LLM interface with caching
-   - get_video_frames()              : Video frame extraction with OpenCV
-   - parse_analysis_and_json()       : Parse LLM responses with JSON blocks
-   - parse_text_find_number()        : Extract numeric answers from responses
-   - create_logger()                 : Create unique loggers with file handlers
-   - get_tasks()                     : Load video tasks from annotation files
-   - parse_and_output_result()       : Generate experiment metrics and reports
-
-8. utils/utils_clip.py - CLIP Embeddings and Frame Retrieval
------------------------------------------------------------
-   CLIPEmbeddingManager Class:
-   - Manages CLIP embedding cache and retrieval operations
-   - Handles embedding lookup for text descriptions
-   
-   Frame Retrieval Functions:
-   - retrieve_frames_by_section()    : Sample frames from specified segments
-   - _sample_frames_from_range()     : Even distribution within frame ranges
-   
-   Legacy Functions:
-   - get_embeddings(), cache_clip (for backward compatibility)
-
-9. main.py - Command Line Interface
------------------------------------
-   Purpose: Standardized CLI entry point with comprehensive argument parsing
-   
-   Execution Modes:
-   - single:    Custom experiment with user-specified parameters
-   - multiple:  Pre-configured multi-model comparison experiments
-   - detailed:  Experiment using detailed caption generation
-   
-   Command Line Arguments:
-   - Model Configuration: --viewer-model, --scheduler-model
-   - Processing Options:  --max-videos, --max-rounds, --caption-function
-   - Experiment Setup:    --experiment-name, --video-list
-   - Performance:         --no-cache, --no-multiprocess
-   - Debugging:          --llm-logging
-
-10. parse_data.py - Data Management Utilities
----------------------------------------------
-    VideoDataManager Class:
-    - Validates video file accessibility and format
-    - Converts JSON annotations to video ID lists
-    - Checks video availability across directories
-    
-    OutputOrganizer Class:
-    - Organizes experiment output directories
-    - Moves video results into structured 'videos' subdirectories
-    
-    ResultProcessor Class:
-    - Processes experiment results in batch
-    - Generates summary reports across multiple experiments
-    
-    CLI Actions:
-    - validate:  Video file validation and filtering
-    - organize:  Output directory restructuring
-    - process:   Batch result processing
-    - summary:   Multi-experiment summary generation
+6. video_agent/utils/config.py - Configuration
+----------------------------------------------
+   - load_config()                 : Load YAML configuration
+   - save_config_to_output()       : Save config to output directory
+   - update_config()               : Apply configuration overrides
+   - Environment variable loading from .env file
 
 
-WORKFLOW (Standardized Pipeline)
-================================
+WORKFLOW
+========
 
-High-Level Process:
+1. Initialization
+   └── VideoAgent(config)
+       ├── Initialize CaptionProcessor
+       ├── Initialize QuestionProcessor
+       └── Setup cache and logging
 
-1. **Initialization**
-   └── VideoAgent(viewer_model, scheduler_model, max_rounds, use_cache)
-       ├── Initialize CaptionProcessor with viewer model and cache settings
-       ├── Initialize QuestionProcessor with scheduler model
-       └── Set up logging and configuration
+2. Experiment Setup
+   └── run_experiment()
+       ├── Create output directory
+       ├── Save configuration
+       ├── Load video annotations
+       └── Select processing mode (sequential/parallel)
 
-2. **Experiment Setup**
-   └── run_experiment(experiment_name, max_test_videos, video_list_file, ...)
-       ├── Create structured output directory with model and parameter info
-       ├── Setup global and LLM logging (if enabled)
-       ├── Load video tasks from annotation file
-       └── Choose caption generation function (multi_level vs detailed)
+3. Video Processing Pipeline (per video)
+   └── _process_video()
+       ├── Load video frames
+       ├── Create VideoMemory instance
+       └── Execute iterative analysis
 
-3. **Video Processing Pipeline** (per video)
-   └── process_single_video(video_id, annotation, logs, output_dir, caption_function)
-       ├── Load video frames with configurable interval
-       ├── Create VideoMemory instance with frame data
-       ├── Format question with multiple choice options
-       └── Execute iterative analysis pipeline
+4. Iterative Analysis (per round)
+   └── While confidence < 3 and rounds < max_rounds:
+       ├── Generate captions (CaptionProcessor)
+       ├── Answer question (QuestionProcessor)
+       ├── Evaluate confidence (QuestionProcessor)
+       └── Resample frames if needed (QuestionProcessor)
 
-4. **Iterative Analysis Pipeline** (per round)
-   └── _run_analysis_pipeline(memory, formatted_question, question, logger, caption_function)
-       ├── **Initial Sampling**: Evenly distribute DEFAULT_INITIAL_FRAMES
-       └── **Analysis Loop** (while confidence < 3 and rounds < MAX_ROUNDS):
-           ├── **Caption Generation**:
-           │   ├── CaptionProcessor.generate_multi_level_captions() OR
-           │   └── CaptionProcessor.generate_detailed_captions()
-           ├── **Question Answering**:
-           │   └── QuestionProcessor.answer_question()
-           ├── **Confidence Evaluation**:
-           │   └── QuestionProcessor.evaluate_confidence()
-           └── **Smart Resampling** (if confidence < 3):
-               └── QuestionProcessor.generate_segment_steps()
-
-5. **Result Processing and Output**
-   └── After pipeline completion:
-       ├── Calculate accuracy metrics (correct, frame count, etc.)
-       ├── Save VideoMemory state and sampled frames
-       ├── Export question, results, and logs
-       └── Generate experiment-wide accuracy statistics
+5. Result Processing
+   └── _save_global_results()
+       ├── Calculate accuracy metrics
+       ├── Save result.json
+       └── Generate accuracy.txt
 
 
-DETAILED FUNCTION TREE (Standardized)
-=====================================
+EVALUATION SCRIPT TEMPLATE
+==========================
 
-VideoAgent.run_experiment()                    # Main experiment orchestrator
-├── VideoAgent._create_output_directory()      # Generate structured output paths
-├── VideoAgent._setup_logging()               # Configure experiment logging
-├── get_tasks()                               # Load video tasks from annotations
-├── VideoAgent._process_videos()              # Coordinate video processing
-│   └── [PARALLEL/SEQUENTIAL EXECUTION]
-│       └── VideoAgent.process_single_video() # Process individual video
-│           ├── get_video_frames()            # Extract frames using OpenCV
-│           ├── VideoMemory.__init__()        # Initialize video state management
-│           └── VideoAgent._run_analysis_pipeline() # Execute iterative analysis
-│               ├── [INITIAL SAMPLING]        # Evenly distribute initial frames
-│               └── [ANALYSIS LOOP] (max MAX_ROUNDS, confidence < 3)
-│                   ├── CaptionProcessor.generate_multi_level_captions()
-│                   │   ├── CaptionProcessor.generate_detailed_captions()
-│                   │   │   ├── get_llm_response()     # LLM call with images
-│                   │   │   └── CaptionProcessor._parse_and_store_captions()
-│                   │   └── CaptionProcessor._generate_event_descriptions()
-│                   │       ├── get_llm_response()     # LLM call for events
-│                   │       └── CaptionProcessor._parse_and_store_events()
-│                   ├── QuestionProcessor.answer_question()
-│                   │   └── get_llm_response()         # LLM call for Q&A
-│                   ├── QuestionProcessor.evaluate_confidence()
-│                   │   └── get_llm_response()         # LLM call for confidence
-│                   └── QuestionProcessor.generate_segment_steps()
-│                       ├── get_llm_response()         # LLM call for segments
-│                       ├── QuestionProcessor._process_segment_response()
-│                       └── retrieve_frames_by_section() # Smart frame sampling
-│               └── [POST-PROCESSING]
-│                   ├── VideoMemory.output()           # Export memory and frames
-│                   ├── Save formatted question
-│                   └── Save video-specific results
-└── parse_and_output_result()                  # Generate experiment metrics
+Location: scripts/template/eval.sh
+
+Required Parameters:
+  MODEL       - Model name/path (e.g., gpt-4o-mini-2024-07-18)
+  ROUND_NAME  - Test round identifier (used for output directory)
+  DATASET     - Dataset name (subset_valid, subset, test_one_video)
+  COUNT       - Number of test cases (0 = full dataset)
+  DETAILED    - Output verbosity (true/false)
+
+Output Structure:
+  results/<ROUND_NAME>_<MODEL>_<COUNT>_<MMDD>[_HHMM]/
+    - logging.log   : Full evaluation log
+    - metrics.csv   : Performance metrics table
+    - summary.txt   : Human-readable summary
+    - answer.json   : Detailed predictions with Q&A
+    - videos/       : Per-video outputs
+
+Usage:
+  # Copy template
+  cp scripts/template/eval.sh scripts/my_eval.sh
+  
+  # Edit parameters
+  vim scripts/my_eval.sh
+  
+  # Run
+  ./scripts/my_eval.sh
 
 
-KEY IMPROVEMENTS IN STANDARDIZED VERSION
-========================================
+USAGE
+=====
 
-1. **Modular Architecture**: Clean separation of concerns with dedicated modules
-2. **Configuration Management**: Centralized config.py for all parameters
-3. **Error Handling**: Comprehensive exception handling and logging
-4. **Documentation**: Extensive docstrings and type hints throughout
-5. **Backward Compatibility**: Legacy function support for existing code
-6. **Import Flexibility**: Supports both package and direct execution imports
-7. **CLI Interface**: Comprehensive command-line argument parsing
-8. **Testing Framework**: Import validation and module testing capabilities
-9. **Data Management**: Standardized utilities for video and result processing
-10. **Caching System**: Robust LLM response and embedding caching with error recovery 
+Command Line:
+  python -m video_agent.cli --config default --max-videos 10
+
+Environment Variables:
+  AIML_API_KEY     - API key for LLM service
+  AIML_BASE_URL    - API base URL (optional)
+
+Configuration (configs/default.yaml):
+  - scheduler_model: Model for Q&A and evaluation
+  - viewer_model: Model for caption generation
+  - max_rounds: Maximum analysis rounds
+  - max_test_videos: Number of videos to process
+  - output_dir: Results output directory
+
+Installation:
+  pip install -e .
+  # or
+  pip install -r requirements.txt

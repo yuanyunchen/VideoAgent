@@ -3,11 +3,12 @@ Question processor for video analysis.
 """
 
 import json
-from typing import Dict, Any, List, Tuple
-from core.video_memory import VideoMemory
-from utils.AIML_API import get_llm_response as api_get_llm_response, get_text_response, get_image_response
-from utils.general import parse_analysis_and_json, parse_text_find_number, retrieve_frames_by_section
 import random
+from typing import Dict, Any, List, Tuple
+
+from video_agent.core.video_memory import VideoMemory
+from video_agent.utils.api import get_llm_response
+from video_agent.utils.parsing import parse_analysis_and_json, parse_text_find_number, retrieve_frames_by_section
 
 
 class QuestionProcessor:
@@ -21,7 +22,7 @@ class QuestionProcessor:
     
     def answer_question(self, video_memory: VideoMemory, logger=None) -> str:
         """
-        Answer question based on video memory - restored from original main.py.
+        Answer question based on video memory.
         
         Args:
             video_memory: VideoMemory instance with captions and event descriptions
@@ -64,10 +65,8 @@ class QuestionProcessor:
         
         """
         
-        system_prompt = "You are a helpful video analysis assistant for answering questions related to video."
-        
         try:
-            response = api_get_llm_response(
+            response = get_llm_response(
                 model=self.config.get("scheduler_model", "gpt-4o-mini-2024-07-18"),
                 query=user_prompt,
                 logger=logger
@@ -110,7 +109,7 @@ class QuestionProcessor:
     
     def evaluate_confidence(self, video_memory: VideoMemory, question: str, answer_str: str, logger=None) -> str:
         """
-        Evaluate confidence of answer - restored from original main.py self_eval function.
+        Evaluate confidence of answer.
         
         Args:
             video_memory: VideoMemory instance
@@ -159,10 +158,8 @@ class QuestionProcessor:
            {confidence_format}
         """
         
-        system_prompt = "You are a helpful and critical assistant designed to evaluate the trustworthiness of a video Q&A process."
-        
         try:
-            response = api_get_llm_response(
+            response = get_llm_response(
                 model=self.config.get("scheduler_model", "gpt-4o-mini-2024-07-18"),
                 query=user_prompt,
                 logger=logger
@@ -195,7 +192,7 @@ class QuestionProcessor:
     
     def generate_segment_steps(self, video_memory: VideoMemory, question: str, logger=None) -> Tuple[List[int], str]:
         """
-        Generate new frame indices using LLM segment prediction - restored from original main.py.
+        Generate new frame indices using LLM segment prediction.
         
         Args:
             video_memory: VideoMemory instance
@@ -210,9 +207,6 @@ class QuestionProcessor:
             i + 1: f"Frame {video_memory.sampled_idx[i]}-{video_memory.sampled_idx[i + 1]}"
             for i in range(len(video_memory.sampled_idx) - 1)
         }
-        
-        # Step 2: Prepare the prompt for the model
-        system_prompt = "You are an expert video analyst tasked with identifying relevant video segments to answer a specific question "
         
         # Format the current captions for the prompt
         example_format = {
@@ -257,13 +251,13 @@ class QuestionProcessor:
         """
         
         # Step 3: Get the model's prediction
-        response = api_get_llm_response(
+        response = get_llm_response(
             model=self.config.get("scheduler_model", "gpt-4o-mini-2024-07-18"),
             query=user_prompt,
             logger=logger
         )
         
-        # Step 4: Process the response and calculate new_idx using encapsulated function
+        # Step 4: Process the response and calculate new_idx
         try:
             _, segment_str_predictions = parse_analysis_and_json(response)
             segment_predictions = {int(k): v for k, v in segment_str_predictions.items()}
@@ -344,4 +338,5 @@ class QuestionProcessor:
         if new_idx:
             video_memory.add_sampled_frames(new_idx)
         
-        return new_idx 
+        return new_idx
+

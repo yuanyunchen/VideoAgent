@@ -1,0 +1,351 @@
+# VideoAgent Model Configuration Reference
+# Price Source: https://aimlapi.com/ai-ml-api-pricing
+# Last Updated: 2025-01
+#
+# Price Format: $input/$output per 1M tokens
+# Think Length: Approximate reasoning chain length for thinking models
+# Rating: * to ***** based on general capability
+#
+# IMPORTANT: 
+#   - viewer_model MUST support vision/images (multimodal)
+#   - scheduler_model can be text-only (for Q&A and reasoning)
+#   - Use the exact API model name (with provider prefix) in config
+#
+# ============================================================================
+# MULTIMODAL MODELS (Vision + Text) - For viewer_model
+# ============================================================================
+# These models can process both images and text, suitable for caption generation
+# and visual understanding tasks.
+
+multimodal_models:
+  # --------------------------------------------------------------------------
+  # OpenAI Models (Latest)
+  # --------------------------------------------------------------------------
+  openai/gpt-4.1:
+    provider: "OpenAI"
+    price_input: 2.00
+    price_output: 8.00
+    context_window: 128000
+    vision: true
+    rating: 5
+    recommended_for: "Expert viewer - latest GPT with vision"
+    notes: "Latest GPT model with excellent vision"
+  
+  openai/gpt-4.1-mini:
+    provider: "OpenAI"
+    price_input: 0.40
+    price_output: 1.60
+    context_window: 128000
+    vision: true
+    rating: 4
+    recommended_for: "Good viewer - fast and capable"
+    notes: "Balanced performance and cost"
+  
+  gpt-4o:
+    provider: "OpenAI"
+    price_input: 2.50
+    price_output: 10.00
+    context_window: 128000
+    vision: true
+    rating: 5
+    recommended_for: "Expert viewer - excellent quality"
+    notes: "Excellent multimodal capability"
+  
+  gpt-4o-mini:
+    provider: "OpenAI"
+    price_input: 0.15
+    price_output: 0.60
+    context_window: 128000
+    vision: true
+    rating: 4
+    recommended_for: "Default viewer - best value"
+    notes: "Best value for most use cases"
+
+  # --------------------------------------------------------------------------
+  # Anthropic Models
+  # --------------------------------------------------------------------------
+  anthropic/claude-4-sonnet:
+    provider: "Anthropic"
+    price_input: 3.00
+    price_output: 15.00
+    context_window: 200000
+    vision: true
+    rating: 5
+    recommended_for: "Expert viewer - latest Claude"
+    notes: "Latest Claude with vision"
+  
+  anthropic/claude-4.5-sonnet:
+    provider: "Anthropic"
+    price_input: 3.00
+    price_output: 15.00
+    context_window: 200000
+    vision: true
+    rating: 5
+    recommended_for: "Expert viewer - excellent visual reasoning"
+    notes: "Strong reasoning, long context"
+  
+  anthropic/claude-3-opus:
+    provider: "Anthropic"
+    price_input: 15.00
+    price_output: 75.00
+    context_window: 200000
+    vision: true
+    rating: 5
+    recommended_for: "Premium - highest quality"
+    notes: "Most capable, very expensive"
+  
+  claude-3-haiku:
+    provider: "Anthropic"
+    price_input: 0.25
+    price_output: 1.25
+    context_window: 200000
+    vision: true
+    rating: 3.5
+    recommended_for: "Budget viewer - fast and cheap"
+    notes: "Good for simple visual tasks"
+
+  # --------------------------------------------------------------------------
+  # Google Models
+  # --------------------------------------------------------------------------
+  google/gemini-2.5-pro:
+    provider: "Google"
+    price_input: 1.25
+    price_output: 10.00
+    context_window: 2000000
+    vision: true
+    rating: 5
+    recommended_for: "Long video - 2M context"
+    notes: "Best for very long videos"
+  
+  google/gemini-2.5-flash:
+    provider: "Google"
+    price_input: 0.15
+    price_output: 0.60
+    context_window: 1000000
+    vision: true
+    rating: 4
+    recommended_for: "Fast viewer - 1M context"
+    notes: "Very fast, long context"
+
+  # --------------------------------------------------------------------------
+  # Alibaba Qwen Models (Multimodal)
+  # --------------------------------------------------------------------------
+  alibaba/qwen-vl-max-latest:
+    provider: "Alibaba"
+    price_input: 0.40
+    price_output: 1.20
+    context_window: 32000
+    vision: true
+    rating: 4
+    recommended_for: "Good viewer - strong visual"
+    notes: "Best Qwen vision model"
+  
+  alibaba/qwen-vl-plus:
+    provider: "Alibaba"
+    price_input: 0.15
+    price_output: 0.45
+    context_window: 32000
+    vision: true
+    rating: 3.5
+    recommended_for: "Budget viewer - decent quality"
+    notes: "Good balance for Qwen"
+
+  # --------------------------------------------------------------------------
+  # xAI Grok Models (Multimodal - Vision + Text)
+  # --------------------------------------------------------------------------
+  x-ai/grok-4-1-fast-reasoning:
+    provider: "xAI"
+    price_input: 0.210
+    price_output: 0.530
+    vision: true
+    think_length: "~1,800 chars"
+    rating: 4.5
+    recommended_for: "Both scheduler and viewer with reasoning"
+    notes: "Multimodal with thinking - best xAI for complex tasks"
+  
+  x-ai/grok-4-1-fast-non-reasoning:
+    provider: "xAI"
+    price_input: 0.210
+    price_output: 0.530
+    vision: true
+    rating: 4.5
+    recommended_for: "Both scheduler and viewer - fast"
+    notes: "Multimodal without reasoning - fastest xAI option"
+
+  # --------------------------------------------------------------------------
+  # Alibaba Qwen VL Models (Vision + Text)
+  # --------------------------------------------------------------------------
+  alibaba/qwen3-vl-plus:
+    provider: "Alibaba"
+    price_input: 0.20
+    price_output: 0.80
+    vision: true
+    rating: 4
+    recommended_for: "Good viewer - Qwen 3 vision"
+    notes: "Latest Qwen vision model"
+  
+  alibaba/qwen3-vl-flash:
+    provider: "Alibaba"
+    price_input: 0.10
+    price_output: 0.40
+    vision: true
+    rating: 3.5
+    recommended_for: "Budget viewer - fast Qwen vision"
+    notes: "Cheaper Qwen vision option"
+
+# ============================================================================
+# TEXT-ONLY MODELS (No Vision) - For scheduler_model
+# ============================================================================
+# These models process text only, suitable for question answering, 
+# confidence evaluation, and segment planning.
+# WARNING: Do NOT use these as viewer_model!
+
+text_only_models:
+  # --------------------------------------------------------------------------
+  # Thinking/Reasoning Models (Best for scheduler)
+  # --------------------------------------------------------------------------
+  alibaba/qwen3-next-80b-a3b-thinking:
+    provider: "Alibaba"
+    price_input: 0.158
+    price_output: 1.600
+    vision: false
+    think_length: "~1,700 chars"
+    rating: 4
+    recommended_for: "Teacher - best value thinking"
+    notes: "Excellent cost-performance ratio"
+  
+  alibaba/qwen3-235b-a22b-thinking-2507:
+    provider: "Alibaba"
+    price_input: 0.242
+    price_output: 2.415
+    vision: false
+    think_length: "~2,200 chars"
+    rating: 5
+    recommended_for: "Expert - highest quality reasoning"
+    notes: "Best for complex questions"
+  
+  deepseek/deepseek-reasoner-v3.1:
+    provider: "DeepSeek"
+    price_input: 0.294
+    price_output: 0.441
+    vision: false
+    think_length: "~5,600 chars"
+    rating: 5
+    recommended_for: "Teacher - longest thinking chain"
+    notes: "Most thorough reasoning"
+  
+  deepseek/deepseek-reasoner:
+    provider: "DeepSeek"
+    price_input: 0.294
+    price_output: 0.441
+    vision: false
+    think_length: "~500 chars"
+    rating: 4
+    recommended_for: "Teacher - standard reasoning"
+    notes: "Good baseline reasoner"
+  
+  minimax/m2:
+    provider: "MiniMax"
+    price_input: 0.315
+    price_output: 1.260
+    vision: false
+    think_length: "~1,900 chars"
+    rating: 4.5
+    recommended_for: "Expert - stable performance"
+    notes: "Consistent quality"
+
+  # --------------------------------------------------------------------------
+  # Standard Text Models
+  # --------------------------------------------------------------------------
+  openai/gpt-oss-120b:
+    provider: "OpenAI"
+    price_input: 0.20
+    price_output: 0.80
+    vision: false
+    rating: 4
+    recommended_for: "Good scheduler - open-source GPT"
+    notes: "TEXT ONLY - strong reasoning, no vision!"
+  
+  openai/gpt-oss-20b:
+    provider: "OpenAI"
+    price_input: 0.05
+    price_output: 0.20
+    vision: false
+    rating: 3
+    recommended_for: "Budget scheduler - lightweight"
+    notes: "TEXT ONLY - for resource-constrained use"
+  
+  deepseek/deepseek-v3:
+    provider: "DeepSeek"
+    price_input: 0.14
+    price_output: 0.28
+    vision: false
+    rating: 4
+    recommended_for: "Budget scheduler - best value"
+    notes: "Very cheap, good quality"
+  
+  deepseek/deepseek-chat:
+    provider: "DeepSeek"
+    price_input: 0.14
+    price_output: 0.28
+    vision: false
+    rating: 4
+    recommended_for: "Budget scheduler - simple tasks"
+    notes: "Good value for simple tasks"
+  
+  alibaba/qwen-turbo-latest:
+    provider: "Alibaba"
+    price_input: 0.05
+    price_output: 0.15
+    vision: false
+    rating: 3.5
+    recommended_for: "Budget - fastest and cheapest"
+    notes: "Use for testing/prototyping"
+
+# ============================================================================
+# RECOMMENDED CONFIGURATIONS
+# ============================================================================
+
+recommended_configs:
+  # Best overall quality (expensive)
+  expert:
+    scheduler_model: "gpt-4o"
+    viewer_model: "gpt-4o"
+    description: "Highest quality, most expensive"
+    estimated_cost_per_video: "$0.50-2.00"
+  
+  # Good balance (recommended default)
+  default:
+    scheduler_model: "gpt-4o-mini"
+    viewer_model: "gpt-4o-mini"
+    description: "Good balance of cost and quality"
+    estimated_cost_per_video: "$0.05-0.20"
+  
+  # Budget option
+  budget:
+    scheduler_model: "deepseek/deepseek-v3"
+    viewer_model: "google/gemini-2.5-flash"
+    description: "Cheapest option, still decent quality"
+    estimated_cost_per_video: "$0.01-0.05"
+  
+  # Thinking model with vision
+  reasoning:
+    scheduler_model: "alibaba/qwen3-235b-a22b-thinking-2507"
+    viewer_model: "gpt-4o-mini"
+    description: "Deep reasoning with good visual understanding"
+    estimated_cost_per_video: "$0.10-0.40"
+  
+  # Long video configuration
+  long_video:
+    scheduler_model: "anthropic/claude-4.5-sonnet"
+    viewer_model: "google/gemini-2.5-pro"
+    description: "Best for very long videos (2M context)"
+    estimated_cost_per_video: "$0.30-1.00"
+  
+  # Mixed: cheap reasoning + good vision
+  mixed_value:
+    scheduler_model: "x-ai/grok-4-1-fast-reasoning"
+    viewer_model: "gpt-4o-mini"
+    description: "Cheap reasoning model + good vision model"
+    estimated_cost_per_video: "$0.08-0.25"
+    notes: "x-ai/grok-4-1-fast-reasoning is TEXT ONLY, paired with vision-capable gpt-4o-mini"

@@ -6,7 +6,8 @@ import os
 import cv2
 import json
 import numpy as np
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any, Optional
+
 
 class VideoMemory:
     """Manages video frames and associated analysis data."""
@@ -52,7 +53,6 @@ class VideoMemory:
         self.captions = {}  # Maps frame_idx to caption
         
         # For backward compatibility with original main.py
-        self.detailed_captions = self.captions  # Alias
         self.overview = ""
         self.events = {}  # Maps frame_idx to event description
         
@@ -119,7 +119,14 @@ class VideoMemory:
     def update_caption(self, frame_idx: int, caption: str) -> None:
         """Update caption for a specific frame."""
         self.captions[frame_idx] = caption
-        self.detailed_captions[frame_idx] = caption  # Backward compatibility
+    
+    def update_event(self, frame_idx: int, event: str) -> None:
+        """Update event description for a specific frame."""
+        self.events[frame_idx] = event
+    
+    def update_overview(self, overview: str) -> None:
+        """Update video overview."""
+        self.overview = overview
     
     def start_new_round(self) -> None:
         """Start a new processing round."""
@@ -155,17 +162,17 @@ class VideoMemory:
             f.write(str(self))
         
         # Save results
-            result = {
-                "video_id": self.video_id,
-                "question": self.question,
-                "predicted_answer": self.predicted_answer,
-                "actual_answer": self.answer,
-                "confidence": self.confidence,
-                "rounds_history": self.rounds_history,
-                "total_rounds": self.current_round,
-                "answer_analysis": getattr(self, 'answer_analysis', ''),
-                "confidence_analysis": getattr(self, 'confidence_analysis', '')
-            }
+        result = {
+            "video_id": self.video_id,
+            "question": self.question,
+            "predicted_answer": self.predicted_answer,
+            "actual_answer": self.answer,
+            "confidence": self.confidence,
+            "rounds_history": self.rounds_history,
+            "total_rounds": self.current_round,
+            "answer_analysis": getattr(self, 'answer_analysis', ''),
+            "confidence_analysis": getattr(self, 'confidence_analysis', '')
+        }
         
         result_file = os.path.join(output_dir, "result.json")
         with open(result_file, "w") as f:
@@ -179,10 +186,12 @@ class VideoMemory:
             frame_path = os.path.join(frames_dir, f"{frame_idx}.png")
             cv2.imwrite(frame_path, self.sampled_frames[i])
     
+    def output(self, output_dir: str) -> None:
+        """Backward compatibility method."""
+        self.save_to_directory(output_dir)
+    
     def __str__(self) -> str:
-        """
-        String representation of memory content - restored from original main.py format.
-        """
+        """String representation of memory content."""
         content = []
         
         # Write Overview
@@ -206,28 +215,14 @@ class VideoMemory:
             for idx in self.sampled_idx:
                 if idx in self.captions:
                     content.append(f"Frame {idx}: {self.captions[idx]}\n")
-            else:
-                content.append("No captions available.\n")
+        else:
+            content.append("No captions available.\n")
         
         return "".join(content)
 
     def frame_formatted(self, frame_indices: List[int]) -> Dict[str, str]:
-        """Format frame captions for display - backward compatibility."""
+        """Format frame captions for display."""
         return {f"Frame {idx}": self.captions[idx] for idx in frame_indices if idx in self.captions}
-    
-    def update_event(self, frame_idx: int, event: str) -> None:
-        """Update event description - backward compatibility."""
-        if not hasattr(self, 'events'):
-            self.events = {}
-        self.events[frame_idx] = event
-    
-    def update_overview(self, overview: str) -> None:
-        """Update overview - backward compatibility."""
-        self.overview = overview
-    
-    def output(self, output_dir: str) -> None:
-        """Backward compatibility method."""
-        self.save_to_directory(output_dir)
     
     @property
     def detailed_captions(self) -> Dict[int, str]:
@@ -237,4 +232,5 @@ class VideoMemory:
     @detailed_captions.setter
     def detailed_captions(self, value: Dict[int, str]) -> None:
         """Backward compatibility setter."""
-        self.captions = value 
+        self.captions = value
+
