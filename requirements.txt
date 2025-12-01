@@ -1,0 +1,18 @@
+# VideoAgent Requirements
+# Core dependencies for video analysis and LLM integration
+
+# LLM API Integration
+openai>=1.3.0
+
+# Video Processing
+opencv-python>=4.8.0
+
+# Scientific Computing
+numpy>=1.24.0
+
+# Configuration Management
+PyYAML>=6.0
+
+# Progress Tracking (optional but mentioned in README)
+tqdm>=4.65.0
+

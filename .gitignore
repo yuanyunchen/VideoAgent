@@ -1,0 +1,14 @@
+# 忽略目录
+dataset/
+cache/
+output/
+results/
+__pycache__/
+WLOG.md
+parse_data.py
+
+# 忽略特定文件类型（可选）
+*.log
+*.json
+*.pyc
+*.tmp

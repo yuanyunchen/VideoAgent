@@ -1,0 +1,33 @@
+# Default VideoAgent Configuration
+# Balanced settings for general use
+
+scheduler_model: "gpt-4o-mini-2024-07-18"
+viewer_model: "gpt-4o-mini-2024-07-18"
+max_rounds: 5
+max_retrieved_frames: 5
+min_retrieved_frames: 2
+default_initial_frames: 5
+reference_length: 50
+input_frame_interval: 30
+video_processing_method: "standard"
+caption_method: "multi_level"
+aiml_api_key: ""
+aiml_base_url: "https://api.aimlapi.com/v1"
+llm_temperature: null
+llm_max_tokens: null
+dataset_dir: "dataset"
+cache_dir: "cache"
+output_dir: "results"
+video_dir: "dataset/videos"
+annotation_file: "dataset/subset_anno.json"
+test_video_list_file: "dataset/subset_valid.txt"
+use_cache: true
+cache_llm_file: "cache/cache_llm.pkl"
+cache_clip_file: "cache/cache_clip.pkl"
+log_level: "INFO"
+enable_llm_logging: true
+logging_process: true
+max_processes: 10
+max_test_videos: -1
+multi_process: true
+experiment_name: "default_experiment"
