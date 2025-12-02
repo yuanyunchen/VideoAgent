@@ -15,31 +15,27 @@ def setup_logger(name: str, output_dir: str, level: str = "INFO",
         name: Logger name
         output_dir: Output directory for log files
         level: Logging level
-        enable_llm_logging: Whether to enable LLM logging
+        enable_llm_logging: Whether to enable LLM detailed logging (uses DEBUG level)
         
     Returns:
         Configured logger
     """
     logger = logging.getLogger(name)
-    logger.setLevel(getattr(logging, level.upper()))
+    
+    # Set level based on llm_logging flag
+    log_level = logging.DEBUG if enable_llm_logging else getattr(logging, level.upper())
+    logger.setLevel(log_level)
     
     # Clear existing handlers
     logger.handlers.clear()
     
-    # File handler only - no console output
+    # Single file handler - logging.log
     os.makedirs(output_dir, exist_ok=True)
     file_handler = logging.FileHandler(os.path.join(output_dir, "logging.log"))
-    file_handler.setLevel(getattr(logging, level.upper()))
+    file_handler.setLevel(log_level)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
-    
-    # LLM logger if enabled
-    if enable_llm_logging:
-        llm_handler = logging.FileHandler(os.path.join(output_dir, "llm.log"))
-        llm_handler.setLevel(logging.DEBUG)
-        llm_handler.setFormatter(formatter)
-        logger.addHandler(llm_handler)
     
     return logger
 

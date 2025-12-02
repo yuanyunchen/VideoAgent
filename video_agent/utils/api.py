@@ -15,6 +15,9 @@ from video_agent.utils.config import (
     AIML_API_KEY, AIML_BASE_URL, LLM_TEMPERATURE, LLM_MAX_TOKENS, DEFAULT_SCHEDULER_MODEL
 )
 
+# Default system prompts (matching Base Project)
+DEFAULT_SYSTEM_PROMPT = ""
+
 
 class AIMLClient:
     """
@@ -32,8 +35,8 @@ class AIMLClient:
         self.api_key = api_key or AIML_API_KEY
         self.base_url = base_url or AIML_BASE_URL
         self.api = OpenAI(api_key=self.api_key, base_url=self.base_url)
-        self.temperature = LLM_TEMPERATURE
-        self.max_tokens = LLM_MAX_TOKENS
+        self.temperature = LLM_TEMPERATURE if LLM_TEMPERATURE is not None else 0.7
+        self.max_tokens = LLM_MAX_TOKENS if LLM_MAX_TOKENS is not None else 10000
     
     def get_text_response(self, user_prompt: str, model_name: str = DEFAULT_SCHEDULER_MODEL,
                          system_prompt: str = "", json_format: bool = False) -> str:
@@ -154,8 +157,9 @@ MAX_RETRY_TIME = 3600  # maximum total time to spend retrying (1h)
 
 
 def get_llm_response(model: str, query: str, images: Optional[List] = None, 
+                    system_prompt: str = DEFAULT_SYSTEM_PROMPT,
                     temperature: Optional[float] = None, max_tokens: Optional[int] = None, 
-                    logger=None) -> str:
+                    json_format: bool = False, logger=None) -> str:
     """
     Unified LLM response function with rate limit retry logic.
     
@@ -163,8 +167,10 @@ def get_llm_response(model: str, query: str, images: Optional[List] = None,
         model: Model name
         query: Query text
         images: Optional list of images
-        temperature: Temperature override
-        max_tokens: Max tokens override
+        system_prompt: System prompt for the LLM (default: empty string)
+        temperature: Temperature override (default: 0.7)
+        max_tokens: Max tokens override (default: 10000)
+        json_format: Whether to request JSON formatted response
         logger: Optional logger
         
     Returns:
@@ -183,6 +189,7 @@ def get_llm_response(model: str, query: str, images: Optional[List] = None,
         timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
         logger.info(f"[{timestamp}] === LLM INPUT ===")
         logger.info(f"Model: {model}")
+        logger.info(f"System Prompt: {system_prompt}")
         logger.info(f"Has Images: {len(images) if images else 0}")
         logger.info(f"Query: {query}")
     
@@ -194,9 +201,9 @@ def get_llm_response(model: str, query: str, images: Optional[List] = None,
         try:
             # Get response
             if images:
-                response = client.get_image_response(query, images, model)
+                response = client.get_image_response(query, images, model, system_prompt, json_format)
             else:
-                response = client.get_text_response(query, model)
+                response = client.get_text_response(query, model, system_prompt, json_format)
             
             # Log output if logger provided
             if logger:

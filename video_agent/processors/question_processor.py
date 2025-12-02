@@ -10,6 +10,11 @@ from video_agent.core.video_memory import VideoMemory
 from video_agent.utils.api import get_llm_response
 from video_agent.utils.parsing import parse_analysis_and_json, parse_text_find_number, retrieve_frames_by_section
 
+# System prompts matching Base Project
+SYSTEM_PROMPT_ANSWER = "You are a helpful video analysis assistant for answering questions related to video."
+SYSTEM_PROMPT_CONFIDENCE = "You are a helpful and critical assistant designed to evaluate the trustworthiness of a video Q&A process."
+SYSTEM_PROMPT_SEGMENT = "You are an expert video analyst tasked with identifying relevant video segments to answer a specific question"
+
 
 class QuestionProcessor:
     """Handles question answering and confidence evaluation."""
@@ -54,8 +59,6 @@ class QuestionProcessor:
         Answer the following question:
         {formatted_question}
         
-        IMPORTANT: The correct answer must be one of the provided choices. You must select the most appropriate answer from the given options.
-        
         Format your response as follows:
         - First, write your step-by-step analysis as plain text.
         - Then, on a new line, include the JSON output enclosed in triple backticks (```json ... ```), like this:
@@ -69,6 +72,7 @@ class QuestionProcessor:
             response = get_llm_response(
                 model=self.config.get("scheduler_model", "gpt-4o-mini-2024-07-18"),
                 query=user_prompt,
+                system_prompt=SYSTEM_PROMPT_ANSWER,
                 logger=logger
             )
             
@@ -107,7 +111,7 @@ class QuestionProcessor:
         
         return f"Error: {error_msg}\n\n```json\n{json.dumps(error_json)}\n```"
     
-    def evaluate_confidence(self, video_memory: VideoMemory, question: str, answer_str: str, logger=None) -> str:
+    def evaluate_confidence(self, video_memory: VideoMemory, question: str, answer_str: str, logger=None, not_confident: bool = True) -> str:
         """
         Evaluate confidence of answer.
         
@@ -116,6 +120,7 @@ class QuestionProcessor:
             question: Original question
             answer_str: Answer response from answer_question
             logger: Optional logger for detailed LLM logging
+            not_confident: Whether to include additional guidance for low confidence (default: True)
             
         Returns:
             Confidence evaluation response string
@@ -150,7 +155,7 @@ class QuestionProcessor:
            - Clarity: Is the information unambiguous and easy to understand?  
         
             If the confidence level is below 3, consider additional guidance:  
-           {confidence_level_guidance}  
+           {confidence_level_guidance if not_confident else ""}  
         
         5.Format your response as follows:
         - First, write your step-by-step analysis as plain text.
@@ -162,6 +167,7 @@ class QuestionProcessor:
             response = get_llm_response(
                 model=self.config.get("scheduler_model", "gpt-4o-mini-2024-07-18"),
                 query=user_prompt,
+                system_prompt=SYSTEM_PROMPT_CONFIDENCE,
                 logger=logger
             )
             
@@ -254,6 +260,7 @@ class QuestionProcessor:
         response = get_llm_response(
             model=self.config.get("scheduler_model", "gpt-4o-mini-2024-07-18"),
             query=user_prompt,
+            system_prompt=SYSTEM_PROMPT_SEGMENT,
             logger=logger
         )
         

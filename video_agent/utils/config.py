@@ -116,12 +116,12 @@ LLM_TEMPERATURE = 0.7
 LLM_MAX_TOKENS = 10000
 
 # Paths
-DATASET_DIR = "data"
+DATASET_DIR = "data/EgoSchema_test"
 CACHE_DIR = "cache"
 OUTPUT_DIR = "results"
-VIDEO_DIR = "data/videos"
-ANNOTATION_FILE = "data/annotations/subset_anno.json"
-TEST_VIDEO_LIST_FILE = "data/video_lists/test_one_video.txt"
+VIDEO_DIR = "data/EgoSchema_test/videos"
+ANNOTATION_FILE = "data/EgoSchema_test/annotations.json"
+TEST_VIDEO_LIST_FILE = "data/EgoSchema_test/video_list.txt"
 
 # Cache settings
 USE_CACHE = True

@@ -44,16 +44,10 @@ VideoAgent/
 │       └── parsing.py            # Text and JSON parsing utilities
 │
 ├── data/                         # Input data directory
-│   ├── annotations/
-│   │   └── subset_anno.json      # Video annotations and questions
-│   ├── video_lists/
-│   │   ├── subset.txt            # Full video list
-│   │   ├── subset_valid.txt      # Validated video list
-│   │   └── test_one_video.txt    # Single video test list
-│   └── videos/                   # Video files (symlink to dataset/videos)
-│
-├── dataset/                      # Legacy data directory (videos only)
-│   └── videos/                   # Actual video files
+│   └── EgoSchema_test/           # EgoSchema test dataset (499 videos)
+│       ├── annotations.json      # Video annotations and questions
+│       ├── video_list.txt        # List of valid video IDs
+│       └── videos/               # Video files (.mp4, gitignored)
 │
 ├── cache/                        # Performance optimization cache (gitignored)
 │   ├── cache_llm.pkl             # LLM response cache
@@ -62,11 +56,9 @@ VideoAgent/
 └── results/                      # Experiment results (gitignored)
     └── [experiment_name]/        # Per-experiment outputs
         ├── logging.log           # Full evaluation log
-        ├── metrics.csv           # Performance metrics table (comprehensive)
+        ├── result.json           # Results with Q&A + summary stats (_summary key)
+        ├── metrics.csv           # Performance metrics table
         ├── summary.txt           # Human-readable summary with analysis
-        ├── stats.json            # Full statistics (JSON format)
-        ├── answer.json           # Detailed predictions with Q&A
-        ├── result.json           # Aggregated results (backward compatible)
         ├── accuracy.txt          # Accuracy metrics (backward compatible)
         ├── experiment_config.yaml # Saved configuration
         └── videos/               # Individual video results
@@ -74,8 +66,7 @@ VideoAgent/
                 ├── frames/       # Sampled frames as PNG files
                 ├── memory.txt    # Video memory state
                 ├── question.txt  # Formatted question
-                ├── result.json   # Video-specific results
-                └── logging.log   # Video processing logs
+                └── result.json   # Video-specific results
 
 
 CORE COMPONENTS

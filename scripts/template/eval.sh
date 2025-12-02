@@ -30,52 +30,54 @@
 #
 # Price Source: https://aimlapi.com/ai-ml-api-pricing
 # Full model list: configs/models.yaml
-# Last Updated: 2025-01
+# Last Updated: 2025-12
 #
 # ============================================================================
-# MULTIMODAL MODELS (for viewer_model - caption generation)
+# VISION MODELS (support image input)
 # ============================================================================
-# These models support VISION (image input) - use for frame captioning
+# Use for: viewer_model (frame captioning), or as scheduler if vision needed
 #
-# API Model Name                        | Price ($/1M)    | Rating | Notes
-# --------------------------------------|-----------------|--------|------------------
-# openai/gpt-4.1                        | $2.00/$8.00     | *****  | Latest GPT with vision
-# openai/gpt-4.1-mini                   | $0.40/$1.60     | ****   | Fast, good value
-# gpt-4o                                | $2.50/$10.00    | *****  | Excellent quality
-# gpt-4o-mini                           | $0.15/$0.60     | ****   | Best value (default)
-# anthropic/claude-4-sonnet             | $3.00/$15.00    | *****  | Latest Claude vision
-# anthropic/claude-4.5-sonnet           | $3.00/$15.00    | *****  | Excellent reasoning
-# claude-3-haiku                        | $0.25/$1.25     | ***    | Budget option
-# google/gemini-2.5-pro                 | $1.25/$10.00    | *****  | Best long context
-# google/gemini-2.5-flash               | $0.15/$0.60     | ****   | Fast, 1M context
-# alibaba/qwen-vl-max-latest            | $0.40/$1.20     | ****   | Strong visual
-# alibaba/qwen-vl-plus                  | $0.15/$0.45     | ***    | Budget Qwen vision
+# API Model Name                        | Price ($/1M)    | Think  | Rating | Notes
+# --------------------------------------|-----------------|--------|--------|------------------
+# --- OpenAI ---
+# openai/gpt-5.1                        | $1.31/$10.50    | -      | *****  | Latest GPT-5.1
+# openai/gpt-5.1-chat-latest            | $1.31/$10.50    | -      | *****  | GPT-5.1 chat variant
+# openai/gpt-4.1-mini                   | $0.42/$1.68     | -      | ****   | Fast, good value
+# openai/gpt-4.1-nano                   | $0.11/$0.42     | -      | ***    | Budget option
+# gpt-4o                                | $2.50/$10.00    | -      | *****  | Excellent quality
+# gpt-4o-mini                           | $0.15/$0.60     | -      | ****   | Best value (default)
+# --- Anthropic ---
+# anthropic/claude-4.5-sonnet           | $3.00/$15.00    | -      | *****  | Excellent reasoning
+# anthropic/claude-haiku-4.5            | $1.05/$5.25     | -      | ***    | Budget option
+# --- Google ---
+# google/gemini-3-pro-preview           | $4.20/$18.90    | -      | *****  | Latest Gemini 3
+# google/gemini-2.5-pro                 | $1.31/$10.50    | -      | *****  | Best long context
+# google/gemini-2.5-flash               | $0.32/$2.63     | -      | ****   | Fast, 1M context
+# --- Alibaba ---
+# alibaba/qwen-vl-max-latest            | $0.40/$1.20     | -      | ****   | Strong visual
+# alibaba/qwen-vl-plus                  | $0.15/$0.45     | -      | ***    | Budget Qwen vision
+# --- xAI (Vision + Reasoning!) ---
+# x-ai/grok-4-1-fast-reasoning          | $0.210/$0.530   | ~1.8k  | ****+  | Vision + thinking
+# x-ai/grok-4-1-fast-non-reasoning      | $0.210/$0.530   | -      | ****+  | Vision, no thinking
 #
 # ============================================================================
-# TEXT/REASONING MODELS (for scheduler_model - Q&A, evaluation)
+# TEXT-ONLY MODELS (no vision support)
 # ============================================================================
-# These models can be used for reasoning/answering tasks
+# Use for: scheduler_model (Q&A, evaluation, reasoning)
 #
-# API Model Name                                | Price ($/1M)    | Think  | Vision | Rating
-# ----------------------------------------------|-----------------|--------|--------|--------
-# --- xAI Grok Models (Multimodal!) ---
-# x-ai/grok-4-1-fast-reasoning                  | $0.210/$0.530   | ~1.8k  | YES    | ****+
-# x-ai/grok-4-1-fast-non-reasoning              | $0.210/$0.530   | -      | YES    | ****+
-# --- Thinking/Reasoning Models (Text-only) ---
-# alibaba/qwen3-next-80b-a3b-thinking           | $0.158/$1.600   | ~1.7k  | NO     | ****
-# alibaba/qwen3-235b-a22b-thinking-2507         | $0.242/$2.415   | ~2.2k  | NO     | *****
-# deepseek/deepseek-reasoner-v3.1               | $0.294/$0.441   | ~5.6k  | NO     | *****
-# deepseek/deepseek-reasoner                    | $0.294/$0.441   | ~500   | NO     | ****
-# minimax/m2                                    | $0.315/$1.260   | ~1.9k  | NO     | ****+
+# API Model Name                                | Price ($/1M)    | Think  | Rating | Notes
+# ----------------------------------------------|-----------------|--------|--------|------------------
+# --- Thinking/Reasoning Models ---
+# alibaba/qwen3-next-80b-a3b-thinking           | $0.158/$1.600   | ~1.7k  | ****   | MoE thinking
+# alibaba/qwen3-235b-a22b-thinking-2507         | $0.242/$2.415   | ~2.2k  | *****  | Best Qwen reasoning
+# deepseek/deepseek-reasoner-v3.1               | $0.294/$0.441   | ~5.6k  | *****  | Deep reasoning
+# deepseek/deepseek-reasoner                    | $0.294/$0.441   | ~500   | ****   | Fast reasoning
+# minimax/m2                                    | $0.315/$1.260   | ~1.9k  | ****+  | Balanced
 # --- Standard Text Models ---
-# openai/gpt-oss-120b                           | $0.20/$0.80     | -      | NO     | ****
-# openai/gpt-oss-20b                            | $0.05/$0.20     | -      | NO     | ***
-# deepseek/deepseek-v3                          | $0.14/$0.28     | -      | NO     | ****
-# deepseek/deepseek-chat                        | $0.14/$0.28     | -      | NO     | ****
-# alibaba/qwen-turbo-latest                     | $0.05/$0.15     | -      | NO     | ***
-#
-# NOTE: x-ai/grok-4-1-fast-* models support BOTH vision and text!
-#       They can be used as both SCHEDULER and VIEWER model.
+# openai/gpt-oss-120b                           | $0.20/$0.80     | -      | ****   | Large OSS model
+# openai/gpt-oss-20b                            | $0.05/$0.20     | -      | ***    | Small OSS model
+# deepseek/deepseek-chat                        | $0.14/$0.28     | -      | ****   | Good value
+# alibaba/qwen-turbo-latest                     | $0.05/$0.15     | -      | ***    | Budget option
 # ============================================================================
 
 # ============================================================================
@@ -97,8 +99,8 @@ VIEWER_MODEL="gpt-4o-mini"
 ROUND_NAME="evaluation"
 
 # Dataset configuration
-# Options: subset_valid (default), subset, test_one_video
-DATASET="subset_valid"
+# Default: EgoSchema_test (500 videos)
+DATASET="EgoSchema_test"
 
 # Number of test cases to run (0 = full dataset, -1 = all available)
 COUNT=0
@@ -153,21 +155,10 @@ if [ -z "$VIEWER_MODEL" ]; then
     VIEWER_MODEL="$SCHEDULER_MODEL"
 fi
 
-# Map dataset name to file
-case "$DATASET" in
-    "subset_valid")
-        VIDEO_LIST="data/video_lists/subset_valid.txt"
-        ;;
-    "subset")
-        VIDEO_LIST="data/video_lists/subset.txt"
-        ;;
-    "test_one_video")
-        VIDEO_LIST="data/video_lists/test_one_video.txt"
-        ;;
-    *)
-        VIDEO_LIST="data/video_lists/${DATASET}.txt"
-        ;;
-esac
+# Map dataset name to paths
+VIDEO_LIST="data/EgoSchema_test/video_list.txt"
+ANNOTATION_FILE="data/EgoSchema_test/annotations.json"
+VIDEO_DIR="data/EgoSchema_test/videos"
 
 # Convert count for CLI (0 means use all, -1 means all)
 if [ "$COUNT" -eq 0 ]; then
@@ -224,6 +215,9 @@ python -m video_agent.cli \
     --experiment-name "$ROUND_NAME" \
     --scheduler-model "$SCHEDULER_MODEL" \
     --viewer-model "$VIEWER_MODEL" \
+    --video-list "$VIDEO_LIST" \
+    --annotation-file "$ANNOTATION_FILE" \
+    --video-dir "$VIDEO_DIR" \
     --max-videos "$MAX_VIDEOS" \
     --max-rounds "$MAX_ROUNDS" \
     --max-processes "$MAX_PROCESSES" \

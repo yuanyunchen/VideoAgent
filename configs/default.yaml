@@ -14,14 +14,14 @@ caption_method: "multi_level"
 # API keys should be set via environment variables or .env file
 # aiml_api_key: loaded from AIML_API_KEY env var
 # aiml_base_url: loaded from AIML_BASE_URL env var (default: https://api.aimlapi.com/v1)
-llm_temperature: null
-llm_max_tokens: null
-dataset_dir: "data"
+llm_temperature: 0.7
+llm_max_tokens: 10000
+dataset_dir: "data/EgoSchema_test"
 cache_dir: "cache"
 output_dir: "results"
-video_dir: "data/videos"
-annotation_file: "data/annotations/subset_anno.json"
-test_video_list_file: "data/video_lists/subset_valid.txt"
+video_dir: "data/EgoSchema_test/videos"
+annotation_file: "data/EgoSchema_test/annotations.json"
+test_video_list_file: "data/EgoSchema_test/video_list.txt"
 use_cache: true
 cache_llm_file: "cache/cache_llm.pkl"
 cache_clip_file: "cache/cache_clip.pkl"

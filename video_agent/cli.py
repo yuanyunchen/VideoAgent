@@ -53,6 +53,14 @@ Examples:
     parser.add_argument("--video-processing-method", dest="video_processing_method", 
                        help="Video processing method")
     
+    # Data path overrides
+    parser.add_argument("--video-list", dest="test_video_list_file",
+                       help="Path to video list file")
+    parser.add_argument("--annotation-file", dest="annotation_file",
+                       help="Path to annotation JSON file")
+    parser.add_argument("--video-dir", dest="video_dir",
+                       help="Path to video directory")
+    
     # Execution overrides
     parser.add_argument("--experiment-name", dest="experiment_name", 
                        help="Experiment name for output directory")

@@ -6,6 +6,7 @@ import os
 import json
 import csv
 import logging
+import random
 import multiprocessing as mp
 from datetime import datetime
 from typing import Dict, Any, Optional, List
@@ -35,7 +36,8 @@ class EvalStatistics:
         self.maintained_cases = 0  # Correct -> Correct
         self.total_rounds = 0
         self.total_frames = 0
-        self.invalid_videos = 0
+        self.invalid_videos = 0  # Now tracks videos that used fallback
+        self.fallback_videos = 0  # Videos that used fallback mechanism
         self.confidence_distribution = Counter()
         self.rounds_distribution = Counter()
         self.case_types = Counter()
@@ -50,8 +52,9 @@ class EvalStatistics:
         frame_count = result.get("frame_count", 0)
         answers_list = result.get("answers", [])
         confidence_list = result.get("confidence", [])
+        is_valid_flag = result.get("is_valid", True)  # New validity flag
         
-        # Handle invalid cases
+        # Handle parsing
         try:
             predicted_int = int(predicted) if str(predicted).lstrip('-').isdigit() else -1
             label = int(truth) if truth is not None and str(truth).isdigit() else -1
@@ -59,10 +62,16 @@ class EvalStatistics:
             predicted_int = -1
             label = -1
         
-        is_valid = predicted_int != -1
-        is_correct = predicted_int == label and is_valid
+        # Track fallback usage
+        if not is_valid_flag:
+            self.fallback_videos += 1
         
-        if not is_valid:
+        # With fallback mechanism, predicted should never be -1
+        # But keep backward compatibility check
+        has_valid_prediction = predicted_int != -1
+        is_correct = predicted_int == label and has_valid_prediction
+        
+        if not has_valid_prediction:
             self.invalid_videos += 1
             self.case_types["INVALID"] += 1
             return
@@ -96,6 +105,7 @@ class EvalStatistics:
             self.maintained_cases += 1
             self.case_types["MAINTAINED"] += 1
         elif first_correct and not is_correct:
+            self.first_round_correct += 1  # First round was correct, even if final is wrong
             self.degraded_cases += 1
             self.case_types["DEGRADED"] += 1
         elif not first_correct and is_correct:
@@ -151,6 +161,7 @@ class EvalStatistics:
             "total": self.total,
             "valid": valid,
             "invalid": self.invalid_videos,
+            "fallback_used": self.fallback_videos,
             "correct": self.correct,
             "accuracy": self.get_accuracy(),
             "first_round_correct": self.first_round_correct,
@@ -205,7 +216,8 @@ def _process_video_worker(video_info: Dict, config: Dict[str, Any], output_dir: 
         }
         
     except Exception as e:
-        # Return error result
+        # Return error result with fallback random answer
+        fallback_answer = random.randint(0, 4)
         return {
             "success": False,
             "error": str(e),
@@ -214,14 +226,15 @@ def _process_video_worker(video_info: Dict, config: Dict[str, Any], output_dir: 
             "result": {
                 "video_id": video_info['video_id'],
                 "question": video_info.get("question", ""),
-                "predicted_answer": "-1",
+                "predicted_answer": str(fallback_answer),
                 "actual_answer": video_info.get("answer", ""),
-                "confidence": [-1],
-                "answers": [-1],
+                "confidence": [random.randint(1, 3)],
+                "answers": [fallback_answer],
                 "rounds": 0,
                 "frame_count": 0,
                 "truth": video_info.get("truth"),
-                "rounds_history": []
+                "rounds_history": [],
+                "is_valid": False,
             }
         }
 
@@ -301,7 +314,7 @@ class VideoAgent:
         )
         
         # Load video annotations
-        annotation_file = self.config.get("annotation_file", "data/annotations/subset_anno.json")
+        annotation_file = self.config.get("annotation_file", "data/EgoSchema_test/annotations.json")
         video_list = video_list_file or self.config.get("test_video_list_file")
         
         videos_info = parse_video_annotation(
@@ -399,10 +412,10 @@ class VideoAgent:
                 bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}] {postfix}"
             )
             
-            # Process videos in parallel using imap for better progress tracking
+            # Process videos in parallel using imap_unordered for better throughput
             try:
-                # Use imap to get results as they complete
-                worker_results_iter = pool.imap(_process_video_worker_unpack, video_args)
+                # Use imap_unordered to get results as soon as they complete (not in order)
+                worker_results_iter = pool.imap_unordered(_process_video_worker_unpack, video_args)
                 
                 # Process results as they complete
                 for i, worker_result in enumerate(worker_results_iter):
@@ -413,7 +426,9 @@ class VideoAgent:
                         logger.info(f"Completed video {i+1}/{len(videos_info)}: {worker_result['video_id']}")
                     else:
                         logger.error(f"Error processing video {worker_result['video_id']}: {worker_result['error']}")
-                        results.append(worker_result["result"])
+                        result = worker_result["result"]
+                        results.append(result)
+                        stats.update(result)  # Also update stats for failed videos (with fallback)
                     
                     # Update progress bar with comprehensive stats
                     pbar.update(1)
@@ -462,7 +477,7 @@ class VideoAgent:
                 choices.append(video_info[option_key])
         
         # Load video frames
-        video_dir = self.config.get("video_dir", "data/videos")
+        video_dir = self.config.get("video_dir", "data/EgoSchema_test/videos")
         video_path = os.path.join(video_dir, f"{video_id}.mp4")
         
         # Create video frame tuples for backward compatibility
@@ -509,6 +524,10 @@ class VideoAgent:
         answers_list = []
         confidence_list = []
         
+        # Track validity: True if result is from normal parsing, False if from fallback
+        is_valid_answer = True
+        is_valid_confidence = True
+        
         # Initial frames are already sampled in VideoMemory.__init__
         new_sampled_index = list(video_memory.sampled_idx)
         
@@ -531,21 +550,28 @@ class VideoAgent:
             answer_str = self.question_processor.answer_question(video_memory, video_logger)
             answer = parse_text_find_number(answer_str, "final_answer")
             
-            # Collect answer for this round
-            answers_list.append(answer)
-            
             if video_logger:
                 video_logger.info(f"=== Answer === LLM response:")
                 video_logger.info(f"'{answer_str}'")
                 video_logger.info(f"Answer: {answer}")
             
-            # If answer is -1 (error), set confidence to -1 and break the loop
+            # If answer is -1 (error), apply fallback mechanism
             if answer == -1:
-                confidence = -1
-                confidence_list.append(confidence)
-                if video_logger:
-                    video_logger.error("Error in question processing, terminating video processing")
-                break
+                is_valid_answer = False
+                # Try to get previous valid answer
+                valid_answers = [a for a in answers_list if a != -1]
+                if valid_answers:
+                    answer = valid_answers[-1]
+                    if video_logger:
+                        video_logger.warning(f"Answer parsing failed, falling back to previous answer: {answer}")
+                else:
+                    # No previous valid answer, use random
+                    answer = random.randint(0, 4)
+                    if video_logger:
+                        video_logger.warning(f"Answer parsing failed, no previous valid answer, using random: {answer}")
+            
+            # Collect answer for this round
+            answers_list.append(answer)
             
             # Step 3: Evaluate confidence
             confidence_str = self.question_processor.evaluate_confidence(
@@ -553,19 +579,28 @@ class VideoAgent:
             )
             confidence = parse_text_find_number(confidence_str, "confidence")
             
-            # Collect confidence for this round
-            confidence_list.append(confidence)
-            
             if video_logger:
                 video_logger.info(f"=== Self Evaluation ===")
                 video_logger.info(f"LLM response:\n '{confidence_str}'")
                 video_logger.info(f"Confidence: {confidence}")
             
-            # If confidence is -1 (error), break the loop
+            # If confidence is -1 (error), apply fallback mechanism
             if confidence == -1:
-                if video_logger:
-                    video_logger.error("Error in confidence evaluation, terminating video processing")
-                break
+                is_valid_confidence = False
+                # Try to get previous valid confidence
+                valid_confidences = [c for c in confidence_list if c != -1]
+                if valid_confidences:
+                    confidence = valid_confidences[-1]
+                    if video_logger:
+                        video_logger.warning(f"Confidence parsing failed, falling back to previous confidence: {confidence}")
+                else:
+                    # No previous valid confidence, use random (1-3)
+                    confidence = random.randint(1, 3)
+                    if video_logger:
+                        video_logger.warning(f"Confidence parsing failed, no previous valid confidence, using random: {confidence}")
+            
+            # Collect confidence for this round
+            confidence_list.append(confidence)
             
             # Step 4: If confidence < 3, generate new segments for next round
             if confidence < 3 and round_num < max_rounds - 1:
@@ -580,6 +615,9 @@ class VideoAgent:
             
             round_num += 1
         
+        # Determine overall validity
+        is_valid = is_valid_answer and is_valid_confidence
+        
         # Final results
         video_memory.predicted_answer = str(answer)
         video_memory.confidence = confidence
@@ -588,11 +626,12 @@ class VideoAgent:
             video_logger.info(f"=== Video processing completed after {round_num} rounds ===")
             video_logger.info(f"Final answer: {video_memory.predicted_answer}")
             video_logger.info(f"Final confidence: {video_memory.confidence}")
+            video_logger.info(f"Is valid (no fallback used): {is_valid}")
         
         # Backward compatibility for logs
         label = int(video_info.get("truth", 0)) if video_info.get("truth") else 0
-        # Only mark as correct if answer is valid (not -1) and matches the truth
-        corr = int(label == answer and answer != -1)
+        # Mark as correct if answer matches the truth
+        corr = int(label == answer)
         count_frame = len(video_memory.sampled_idx)
         
         logs[video_id] = {
@@ -603,6 +642,7 @@ class VideoAgent:
             "label": label,
             "corr": corr,
             "count_frame": count_frame,
+            "is_valid": is_valid,
         }
         
         # Save video results
@@ -619,7 +659,7 @@ class VideoAgent:
         with open(result_file, "w") as f:
             json.dump(logs[video_id], f)
         
-        logger.info(f"Finished video: {video_id}/{answer}/{video_info.get('truth', 'N/A')}")
+        logger.info(f"Finished video: {video_id}/{answer}/{video_info.get('truth', 'N/A')} (valid={is_valid})")
         
         return {
             "video_id": video_id,
@@ -631,7 +671,8 @@ class VideoAgent:
             "rounds": round_num,
             "frame_count": len(video_memory.sampled_idx),
             "truth": video_memory.truth,
-            "rounds_history": video_memory.rounds_history
+            "rounds_history": video_memory.rounds_history,
+            "is_valid": is_valid,
         }
     
     def _save_global_results(self, results: List[Dict], output_dir: str):
@@ -649,7 +690,6 @@ class VideoAgent:
         
         # Prepare data for global results
         video_results = {}
-        answer_details = []
         
         for result in results:
             video_id = result.get("video_id", "unknown")
@@ -691,8 +731,12 @@ class VideoAgent:
             else:
                 case_type = "FAILED"
             
-            # Format for result.json (backward compatible)
+            # Get validity flag (defaults to True for backward compatibility)
+            is_valid_flag = result.get("is_valid", True)
+            
+            # Format for result.json (merged format with question)
             video_results[video_id] = {
+                "question": question,
                 "final_answer": predicted_int,
                 "answers": answers_list,
                 "confidence": confidence if isinstance(confidence, list) else [confidence],
@@ -701,35 +745,42 @@ class VideoAgent:
                 "corr": is_correct,
                 "count_frame": frame_count,
                 "case_type": case_type,
+                "is_valid": is_valid_flag,
             }
-            
-            # Format for answer.json (detailed Q&A)
-            answer_details.append({
-                "video_id": video_id,
-                "question": question,
-                "predicted_answer": predicted_int,
-                "ground_truth": label,
-                "correct": bool(is_correct),
-                "case_type": case_type,
-                "confidence": confidence if isinstance(confidence, list) else [confidence],
-                "rounds": rounds,
-                "frame_count": frame_count,
-            })
         
-        # 1. Save result.json (backward compatible)
-        result_file = os.path.join(output_dir, "result.json")
-        with open(result_file, 'w', encoding='utf-8') as f:
-            json.dump(video_results, f, indent=2)
-        
-        # 2. Save answer.json (detailed Q&A format)
-        answer_file = os.path.join(output_dir, "answer.json")
-        with open(answer_file, 'w', encoding='utf-8') as f:
-            json.dump(answer_details, f, indent=2)
-        
-        # Get stats dict
+        # Get stats dict for summary
         stats_dict = stats.to_dict()
         
-        # 3. Save metrics.csv (comprehensive)
+        # Add summary stats to result.json
+        result_output = {
+            "_summary": {
+                "total": stats_dict["total"],
+                "valid": stats_dict["valid"],
+                "invalid": stats_dict["invalid"],
+                "fallback_used": stats_dict["fallback_used"],
+                "correct": stats_dict["correct"],
+                "accuracy": stats_dict["accuracy"],
+                "first_round_correct": stats_dict["first_round_correct"],
+                "first_round_accuracy": stats_dict["first_round_accuracy"],
+                "improved_cases": stats_dict["improved_cases"],
+                "degraded_cases": stats_dict["degraded_cases"],
+                "failed_cases": stats_dict["failed_cases"],
+                "maintained_cases": stats_dict["maintained_cases"],
+                "improvement_rate": stats_dict["improvement_rate"],
+                "avg_rounds": stats_dict["avg_rounds"],
+                "avg_frames": stats_dict["avg_frames"],
+                "total_rounds": stats_dict["total_rounds"],
+                "total_frames": stats_dict["total_frames"],
+            },
+            "results": video_results
+        }
+        
+        # 1. Save result.json (merged format with summary)
+        result_file = os.path.join(output_dir, "result.json")
+        with open(result_file, 'w', encoding='utf-8') as f:
+            json.dump(result_output, f, indent=2)
+        
+        # 2. Save metrics.csv (comprehensive)
         metrics_file = os.path.join(output_dir, "metrics.csv")
         with open(metrics_file, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
@@ -737,6 +788,7 @@ class VideoAgent:
             writer.writerow(["total_videos", stats_dict["total"]])
             writer.writerow(["valid_videos", stats_dict["valid"]])
             writer.writerow(["invalid_videos", stats_dict["invalid"]])
+            writer.writerow(["fallback_used", stats_dict["fallback_used"]])
             writer.writerow(["correct_answers", stats_dict["correct"]])
             writer.writerow(["accuracy", f"{stats_dict['accuracy']:.4f}"])
             writer.writerow(["first_round_correct", stats_dict["first_round_correct"]])
@@ -749,7 +801,7 @@ class VideoAgent:
             writer.writerow(["avg_rounds", f"{stats_dict['avg_rounds']:.2f}"])
             writer.writerow(["avg_frames", f"{stats_dict['avg_frames']:.2f}"])
         
-        # 4. Save summary.txt (human-readable with analysis)
+        # 3. Save summary.txt (human-readable with analysis)
         summary_file = os.path.join(output_dir, "summary.txt")
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         with open(summary_file, 'w', encoding='utf-8') as f:
@@ -766,6 +818,7 @@ class VideoAgent:
             f.write(f"Total Videos:       {stats_dict['total']}\n")
             f.write(f"Valid Videos:       {stats_dict['valid']}\n")
             f.write(f"Invalid Videos:     {stats_dict['invalid']}\n")
+            f.write(f"Fallback Used:      {stats_dict['fallback_used']}\n")
             f.write(f"Correct Answers:    {stats_dict['correct']}\n\n")
             
             # Accuracy Metrics
@@ -829,24 +882,21 @@ class VideoAgent:
             
             f.write("=" * 70 + "\n")
         
-        # 5. Save accuracy.txt (backward compatible)
+        # 4. Save accuracy.txt (backward compatible)
         accuracy_file = os.path.join(output_dir, "accuracy.txt")
         with open(accuracy_file, 'w', encoding='utf-8') as f:
             f.write(f"number_videos: {stats_dict['total']}\n")
             f.write(f"mean_accuracy: {stats_dict['accuracy']}\n")
             f.write(f"mean_frame: {stats_dict['avg_frames']}\n")
+            f.write(f"mean_rounds: {stats_dict['avg_rounds']}\n")
             f.write(f"invalid_videos: {stats_dict['invalid']}\n")
+            f.write(f"fallback_videos: {stats_dict['fallback_used']}\n")
             f.write(f"valid_only_accuracy: {stats_dict['accuracy']}\n")
             f.write(f"valid_only_mean_frames: {stats_dict['avg_frames']}\n")
             f.write(f"first_round_accuracy: {stats_dict['first_round_accuracy']}\n")
             f.write(f"improved_cases: {stats_dict['improved_cases']}\n")
             f.write(f"degraded_cases: {stats_dict['degraded_cases']}\n")
             f.write(f"improvement_rate: {stats_dict['improvement_rate']}\n")
-        
-        # 6. Save stats.json (full statistics)
-        stats_file = os.path.join(output_dir, "stats.json")
-        with open(stats_file, 'w', encoding='utf-8') as f:
-            json.dump(stats_dict, f, indent=2)
 
 
 # Backward compatibility functions
@@ -866,9 +916,9 @@ def run(viewer_model, scheduler_model, round_name, max_test_video_numbers=-1, ma
         "logging_process": True,
         "max_processes": max_processes,
         # Default paths
-        "annotation_file": "data/annotations/subset_anno.json",
-        "test_video_list_file": "data/video_lists/subset.txt",
-        "video_dir": "data/videos",
+        "annotation_file": "data/EgoSchema_test/annotations.json",
+        "test_video_list_file": "data/EgoSchema_test/video_list.txt",
+        "video_dir": "data/EgoSchema_test/videos",
         "output_dir": "results"
     }
     

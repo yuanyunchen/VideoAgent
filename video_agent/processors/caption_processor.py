@@ -9,6 +9,11 @@ from typing import Dict, Any, List
 from video_agent.core.video_memory import VideoMemory
 from video_agent.utils.api import get_llm_response
 
+# System prompts matching Base Project
+SYSTEM_PROMPT_SINGLE_FRAME = "You are an expert video analyst tasked with generating detailed captions for individual video frames."
+SYSTEM_PROMPT_GROUP_FRAMES = "You are an expert video analyst tasked with generating detailed captions for a sequence of video frames."
+SYSTEM_PROMPT_MULTI_LEVEL = "You are an expert video analyst who creates high-level descriptions of video and frames."
+
 
 class CaptionProcessor:
     """Handles caption generation for video frames."""
@@ -85,6 +90,7 @@ class CaptionProcessor:
                 model=viewer_model,
                 query=user_prompt,
                 images=images,
+                system_prompt=SYSTEM_PROMPT_GROUP_FRAMES,
                 logger=logger
             )
             
@@ -194,6 +200,8 @@ class CaptionProcessor:
                 model=viewer_model,
                 query=user_prompt,
                 images=images,
+                system_prompt=SYSTEM_PROMPT_MULTI_LEVEL,
+                json_format=True,
                 logger=logger
             )
             
@@ -264,6 +272,7 @@ class CaptionProcessor:
                 model=self.config.get("viewer_model", "gpt-4o-mini-2024-07-18"),
                 query=prompt,
                 images=[frame],
+                system_prompt=SYSTEM_PROMPT_SINGLE_FRAME,
                 logger=logger
             )
             

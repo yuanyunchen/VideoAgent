@@ -43,9 +43,8 @@ results/
 
 materials/
 
-# Data files (keep structure, ignore large files)
-data/videos/
-dataset/videos/
+# Data files (keep structure, ignore large video files)
+data/EgoSchema_test/videos/
 
 # Temporary files
 *.tmp
@@ -62,3 +61,6 @@ materials/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Project configuration
+pyproject.toml

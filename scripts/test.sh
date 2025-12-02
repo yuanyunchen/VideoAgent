@@ -14,9 +14,9 @@ VIEWER_MODEL="x-ai/grok-4-1-fast-non-reasoning"
 # ============================================================================
 # TEST CONFIGURATION
 # ============================================================================
-ROUND_NAME="test_grok_8videos"
-DATASET="subset_valid"
-COUNT=8
+ROUND_NAME="test_grok_1video"
+DATASET="EgoSchema_test"
+COUNT=1
 MAX_ROUNDS=5
 DETAILED="true"
 MAX_PROCESSES=4  # Parallel processing
@@ -49,10 +49,10 @@ fi
 # Derived Settings
 ################################################################################
 
-VIDEO_LIST="data/video_lists/${DATASET}.txt"
-if [ "$DATASET" = "subset_valid" ]; then
-    VIDEO_LIST="data/video_lists/subset_valid.txt"
-fi
+# Dataset paths - use EgoSchema_test
+VIDEO_LIST="data/EgoSchema_test/video_list.txt"
+ANNOTATION_FILE="data/EgoSchema_test/annotations.json"
+VIDEO_DIR="data/EgoSchema_test/videos"
 
 MAX_VIDEOS="$COUNT"
 
@@ -101,6 +101,9 @@ python -m video_agent.cli \
     --experiment-name "$ROUND_NAME" \
     --scheduler-model "$SCHEDULER_MODEL" \
     --viewer-model "$VIEWER_MODEL" \
+    --video-list "$VIDEO_LIST" \
+    --annotation-file "$ANNOTATION_FILE" \
+    --video-dir "$VIDEO_DIR" \
     --max-videos "$MAX_VIDEOS" \
     --max-rounds "$MAX_ROUNDS" \
     --max-processes "$MAX_PROCESSES" \
