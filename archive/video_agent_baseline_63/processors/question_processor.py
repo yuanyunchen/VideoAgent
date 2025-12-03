@@ -59,6 +59,12 @@ class QuestionProcessor:
         Answer the following question:
         {formatted_question}
         
+        IMPORTANT RULES:
+        - You MUST select exactly ONE answer from the given choices (0, 1, 2, 3, or 4).
+        - Do NOT output "none", "null", "N/A", or any non-numeric answer.
+        - Even if the video content does not perfectly match any choice, you MUST select the option that is MOST LIKELY correct based on the available information.
+        - If uncertain, make your best educated guess based on partial evidence or general reasoning.
+        
         Format your response as follows:
         - First, write your step-by-step analysis as plain text.
         - Then, on a new line, include the JSON output enclosed in triple backticks (```json ... ```), like this:
@@ -66,6 +72,7 @@ class QuestionProcessor:
         {answer_format}
         ```
         
+        Remember: final_answer MUST be an integer from 0 to 4. No exceptions.
         """
         
         try:

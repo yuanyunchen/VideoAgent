@@ -9,8 +9,9 @@ from typing import Dict, Any
 
 def _load_env_file():
     """Load environment variables from .env file if it exists."""
+    # Try multiple locations for .env file
     possible_paths = [
-        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), '.env'),
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '.env'),
         os.path.join(os.getcwd(), '.env'),
     ]
     
@@ -68,7 +69,7 @@ def list_configs() -> list:
     configs = []
     for filename in os.listdir(configs_dir):
         if filename.endswith('.yaml'):
-            configs.append(filename[:-5])
+            configs.append(filename[:-5])  # Remove .yaml extension
     
     return sorted(configs)
 
@@ -86,6 +87,7 @@ def save_config_to_output(config: Dict[str, Any], output_dir: str):
     """Save configuration to output directory as YAML (without sensitive data)."""
     os.makedirs(output_dir, exist_ok=True)
     
+    # Create a copy without sensitive data
     safe_config = config.copy()
     if 'aiml_api_key' in safe_config:
         safe_config['aiml_api_key'] = '***REDACTED***'
@@ -95,10 +97,10 @@ def save_config_to_output(config: Dict[str, Any], output_dir: str):
         yaml.dump(safe_config, f, indent=2, default_flow_style=False)
 
 
-# Default values
+# Default values for backward compatibility
 DEFAULT_SCHEDULER_MODEL = "gpt-4o-mini-2024-07-18"
 DEFAULT_VIEWER_MODEL = "gpt-4o-mini-2024-07-18"
-MAX_ROUNDS = 10
+MAX_ROUNDS = 1
 MAX_RETRIEVED_FRAMES = 5
 MIN_RETRIEVED_FRAMES = 2
 DEFAULT_INITIAL_FRAMES = 5

@@ -1,6 +1,6 @@
 """
 VideoAgent - Main orchestrator for multi-agent video understanding.
-Implements the algorithm flow with Solver agent (direct output mode, no Checker).
+Implements the algorithm flow with Solver and Checker agents.
 """
 
 import os
@@ -16,8 +16,7 @@ from tqdm import tqdm
 
 from video_agent.core.memory import Memory
 from video_agent.agents.solver import Solver
-# Checker disabled - direct output mode
-# from video_agent.agents.checker import evaluate_answer, format_feedback_message
+from video_agent.agents.checker import evaluate_answer, format_feedback_message
 from video_agent.agents.caption_generator import CaptionGenerator
 from video_agent.utils.video import get_video_frames, sample_frame_indices, sample_frame_indices_in_range
 from video_agent.utils.parsing import parse_video_annotation
@@ -215,17 +214,19 @@ def _process_video_worker_unpack(args):
 
 class VideoAgent:
     """
-    Main VideoAgent orchestrator implementing the video understanding algorithm.
+    Main VideoAgent orchestrator implementing the multi-agent video understanding algorithm.
     
-    Algorithm Flow (Direct Output Mode):
+    Algorithm Flow:
     1. Initialize: Load video frames, sample initial frames, generate captions
     2. Create Solver with initial memory
     3. Main Loop (max_steps iterations):
        a. Get Solver decision
        b. If retrieve_more_frames: fetch frames, add to memory, notify Solver
-       c. If answer_question: return result immediately (no Checker)
+       c. If answer_question: call Checker
+          - If confidence >= 4: SUCCESS, return result
+          - If confidence < 4: send feedback to Solver, continue
        d. Handle JSON parse errors with retry message
-    4. Terminate: Return answer or fallback
+    4. Terminate: Return best answer or fallback
     """
     
     def __init__(self, config: Dict[str, Any]):
@@ -615,37 +616,64 @@ Based on the frame captions above, decide whether to:
                     
                     answer = valid_answer
                     
-                    # Extract self-assessed confidence (default to 5 if not provided)
-                    self_confidence = payload.get("confidence", 5)
-                    try:
-                        self_confidence = int(self_confidence)
-                        self_confidence = max(1, min(10, self_confidence))  # Clamp to 1-10
-                    except (ValueError, TypeError):
-                        self_confidence = 5
-                    
                     # Track answer in history
                     answers_history.append(answer)
                     
-                    logger.info(f"Action: answer_question (answer={answer}, confidence={self_confidence})")
+                    logger.info(f"Action: answer_question (answer={answer})")
                     logger.info(f"Explanation: {explanation[:200]}..." if len(explanation) > 200 else f"Explanation: {explanation}")
                     
-                    # Direct output - no checker, return immediately
-                    logger.info(f"=== SUCCESS: Direct answer output ===")
+                    # Track best answer
+                    if best_answer is None:
+                        best_answer = answer
+                        best_explanation = explanation
                     
-                    result = self._create_success_result(
-                        video_info=video_info,
+                    # Call Checker (stateless)
+                    checker_result = evaluate_answer(
+                        question=video_info["question"],
+                        memory=memory,
                         answer=answer,
                         explanation=explanation,
-                        confidence=self_confidence,  # Use Solver's self-assessed confidence
-                        steps=step,
-                        memory=memory,
-                        conversation_history=conversation_history,
-                        answers_history=answers_history
+                        model=self.checker_model,
+                        choices=choices,
+                        logger=logger
                     )
                     
-                    # Save outputs
-                    self._save_video_outputs(result, video_output_dir, memory)
-                    return result
+                    confidence = checker_result.get("confidence_score", 2)
+                    feedback = checker_result.get("feedback", "")
+                    
+                    logger.info(f"Checker result: confidence={confidence}, feedback={feedback}")
+                    
+                    # Check confidence threshold
+                    if confidence >= self.confidence_threshold:
+                        # SUCCESS - return result
+                        logger.info(f"=== SUCCESS: Confidence {confidence} >= {self.confidence_threshold} ===")
+                        
+                        result = self._create_success_result(
+                            video_info=video_info,
+                            answer=answer,
+                            explanation=explanation,
+                            confidence=confidence,
+                            steps=step,
+                            memory=memory,
+                            conversation_history=conversation_history,
+                            answers_history=answers_history
+                        )
+                        
+                        # Save outputs
+                        self._save_video_outputs(result, video_output_dir, memory)
+                        return result
+                    
+                    # Confidence low - update best and send feedback
+                    if confidence > best_confidence:
+                        best_answer = answer
+                        best_explanation = explanation
+                        best_confidence = confidence
+                    
+                    # Format and send feedback to Solver
+                    feedback_msg = format_feedback_message(confidence, feedback)
+                    logger.info(f"Sending feedback to Solver: {feedback_msg[:200]}...")
+                    
+                    thinking, action = solver.send_feedback(feedback_msg)
                 
                 else:
                     # Unknown action type

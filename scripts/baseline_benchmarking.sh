@@ -8,14 +8,14 @@
 ################################################################################
 
 # Model Configuration
-SCHEDULER_MODEL="x-ai/grok-4-1-fast-non-reasoning"
+SCHEDULER_MODEL="x-ai/grok-4-1-fast-reasoning"
 VIEWER_MODEL="x-ai/grok-4-1-fast-non-reasoning"
 
 # Test Configuration
-ROUND_NAME="debugged_baseline_benchmarking"
+ROUND_NAME="reasoning_baseline_benchmarking"
 COUNT=100
-MAX_ROUNDS=5
-MAX_PROCESSES=32
+MAX_ROUNDS=3
+MAX_PROCESSES=16
 
 # Dataset - using EgoSchema_test
 ANNOTATION_FILE="data/EgoSchema_test/annotations.json"

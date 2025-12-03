@@ -1,124 +1,111 @@
 #!/bin/bash
 
 ################################################################################
-# VideoAgent Evaluation Script Template
+# VideoAgent Multi-Agent Evaluation Script Template
 #
-# This script runs video question answering experiments with configurable
-# models, datasets, and parameters. Results are saved with standardized
-# output structure for easy comparison and analysis.
+# This script runs video question answering experiments with the new multi-agent
+# architecture featuring:
+#   - Solver Agent (stateful): Decision making and answer generation
+#   - Viewer Agent: Frame caption generation (requires vision model)
+#   - Checker Agent (stateless): Confidence evaluation and feedback
 #
 # Output Structure:
-#   results/<ROUND_NAME>_<MODEL>_<COUNT>_<MMDD>[_HHMM]/
+#   results/<ROUND_NAME>__<SCHEDULER>_viewer_<VIEWER>_videos_<COUNT>_<MMDD>/
 #     - logging.log     : Full evaluation log
-#     - metrics.csv     : Performance metrics (accuracy, improvement rate, etc.)
-#     - summary.txt     : Human-readable summary with case analysis
-#     - stats.json      : Full statistics in JSON format
-#     - answer.json     : Detailed predictions with Q&A
-#     - result.json     : Raw results (backward compatible)
+#     - metrics.csv     : Performance metrics
+#     - summary.txt     : Human-readable summary
+#     - result.json     : Full results with per-video details
+#     - accuracy.txt    : Quick accuracy summary
 #     - videos/         : Per-video outputs with frames and logs
-#
-# Key Metrics:
-#   - Accuracy:           Final answer accuracy
-#   - First Round Acc:    Accuracy after first round only
-#   - Improvement Rate:   % of initially wrong answers that became correct
-#   - Case Types:         MAINTAINED, IMPROVED, DEGRADED, FAILED
 #
 ################################################################################
 
 ################################################################################
-# Evaluation Settings
+# Model Configuration
 #
 # Price Source: https://aimlapi.com/ai-ml-api-pricing
 # Full model list: configs/models.yaml
 # Last Updated: 2025-12
 #
 # ============================================================================
-# VISION MODELS (support image input)
+# VISION MODELS (support image input) - Required for VIEWER
 # ============================================================================
-# Use for: viewer_model (frame captioning), or as scheduler if vision needed
 #
-# API Model Name                        | Price ($/1M)    | Think  | Rating | Notes
-# --------------------------------------|-----------------|--------|--------|------------------
-# --- OpenAI ---
-# openai/gpt-5.1                        | $1.31/$10.50    | -      | *****  | Latest GPT-5.1
-# openai/gpt-5.1-chat-latest            | $1.31/$10.50    | -      | *****  | GPT-5.1 chat variant
-# openai/gpt-4.1-mini                   | $0.42/$1.68     | -      | ****   | Fast, good value
-# openai/gpt-4.1-nano                   | $0.11/$0.42     | -      | ***    | Budget option
-# gpt-4o                                | $2.50/$10.00    | -      | *****  | Excellent quality
-# gpt-4o-mini                           | $0.15/$0.60     | -      | ****   | Best value (default)
-# --- Anthropic ---
-# anthropic/claude-4.5-sonnet           | $3.00/$15.00    | -      | *****  | Excellent reasoning
-# anthropic/claude-haiku-4.5            | $1.05/$5.25     | -      | ***    | Budget option
-# --- Google ---
-# google/gemini-3-pro-preview           | $4.20/$18.90    | -      | *****  | Latest Gemini 3
-# google/gemini-2.5-pro                 | $1.31/$10.50    | -      | *****  | Best long context
-# google/gemini-2.5-flash               | $0.32/$2.63     | -      | ****   | Fast, 1M context
-# --- Alibaba ---
-# alibaba/qwen-vl-max-latest            | $0.40/$1.20     | -      | ****   | Strong visual
-# alibaba/qwen-vl-plus                  | $0.15/$0.45     | -      | ***    | Budget Qwen vision
-# --- xAI (Vision + Reasoning!) ---
-# x-ai/grok-4-1-fast-reasoning          | $0.210/$0.530   | ~1.8k  | ****+  | Vision + thinking
-# x-ai/grok-4-1-fast-non-reasoning      | $0.210/$0.530   | -      | ****+  | Vision, no thinking
+# API Model Name                        | Price ($/1M)    | Notes
+# --------------------------------------|-----------------|------------------
+# gpt-4o                                | $2.50/$10.00    | Excellent quality
+# gpt-4o-mini                           | $0.15/$0.60     | Best value (default)
+# x-ai/grok-4-1-fast-non-reasoning      | $0.210/$0.530   | Vision + fast
+# x-ai/grok-4-1-fast-reasoning          | $0.210/$0.530   | Vision + thinking
+# google/gemini-2.5-flash               | $0.32/$2.63     | Fast, 1M context
+# alibaba/qwen-vl-max-latest            | $0.40/$1.20     | Strong visual
 #
 # ============================================================================
-# TEXT-ONLY MODELS (no vision support)
+# TEXT/REASONING MODELS - For SCHEDULER and CHECKER
 # ============================================================================
-# Use for: scheduler_model (Q&A, evaluation, reasoning)
 #
-# API Model Name                                | Price ($/1M)    | Think  | Rating | Notes
-# ----------------------------------------------|-----------------|--------|--------|------------------
-# --- Thinking/Reasoning Models ---
-# alibaba/qwen3-next-80b-a3b-thinking           | $0.158/$1.600   | ~1.7k  | ****   | MoE thinking
-# alibaba/qwen3-235b-a22b-thinking-2507         | $0.242/$2.415   | ~2.2k  | *****  | Best Qwen reasoning
-# deepseek/deepseek-reasoner-v3.1               | $0.294/$0.441   | ~5.6k  | *****  | Deep reasoning
-# deepseek/deepseek-reasoner                    | $0.294/$0.441   | ~500   | ****   | Fast reasoning
-# minimax/m2                                    | $0.315/$1.260   | ~1.9k  | ****+  | Balanced
-# --- Standard Text Models ---
-# openai/gpt-oss-120b                           | $0.20/$0.80     | -      | ****   | Large OSS model
-# openai/gpt-oss-20b                            | $0.05/$0.20     | -      | ***    | Small OSS model
-# deepseek/deepseek-chat                        | $0.14/$0.28     | -      | ****   | Good value
-# alibaba/qwen-turbo-latest                     | $0.05/$0.15     | -      | ***    | Budget option
-# ============================================================================
+# API Model Name                        | Price ($/1M)    | Notes
+# --------------------------------------|-----------------|------------------
+# gpt-4o-mini                           | $0.15/$0.60     | Good value
+# x-ai/grok-4-1-fast-non-reasoning      | $0.210/$0.530   | Fast
+# x-ai/grok-4-1-fast-reasoning          | $0.210/$0.530   | With thinking
+# deepseek/deepseek-chat                | $0.14/$0.28     | Budget option
+# alibaba/qwen3-235b-a22b-thinking-2507 | $0.242/$2.415   | Best reasoning
+#
+################################################################################
 
 # ============================================================================
 # MODEL CONFIGURATION
 # ============================================================================
-# Scheduler: Handles Q&A, confidence evaluation, segment planning (text-only OK)
-# Viewer:    Generates frame captions (MUST support vision/images)
+# Scheduler: Solver agent - makes decisions (retrieve frames or answer)
+# Viewer:    Caption agent - generates frame captions (MUST support vision!)
+# Checker:   Evaluation agent - assesses answer confidence (1-10 scale)
 # ============================================================================
 
-# Scheduler model (for Q&A and evaluation - can be text-only)
+# Scheduler model (for Solver agent - decision making)
 SCHEDULER_MODEL="gpt-4o-mini"
 
-# Viewer model (for frame captioning - MUST support vision/images)
-# WARNING: If using text-only model here, caption generation will fail!
+# Viewer model (for caption generation - MUST support vision/images)
 VIEWER_MODEL="gpt-4o-mini"
 
+# Checker model (for confidence evaluation)
+# If not set, defaults to SCHEDULER_MODEL
+CHECKER_MODEL="gpt-4o-mini"
+
+# ============================================================================
+# EXPERIMENT SETTINGS
+# ============================================================================
+
 # Test round name (used for organizing results)
-# Results will be saved to: results/<ROUND_NAME>_<MODEL>_<COUNT>_<MMDD>/
 ROUND_NAME="evaluation"
 
-# Dataset configuration
-# Default: EgoSchema_test (500 videos)
-DATASET="EgoSchema_test"
-
-# Number of test cases to run (0 = full dataset, -1 = all available)
+# Number of test cases to run (0 or -1 = full dataset)
 COUNT=0
 
-# Maximum rounds for iterative refinement (1-5 recommended)
-MAX_ROUNDS=3
+# Maximum rounds of interaction (Solver submits answer, Checker evaluates)
+# Each round: Solver can retrieve frames OR submit answer
+MAX_ROUNDS=5
 
-# Detailed output mode (true/false)
-# When true: enables LLM logging and verbose output
+# Confidence threshold (1-10) to accept an answer
+# Higher = stricter, requires more confident answers
+# Recommended: 7-8 for balanced, 9+ for strict
+CONFIDENCE_THRESHOLD=8
+
+# ============================================================================
+# PROCESSING SETTINGS
+# ============================================================================
+
+# Multiprocessing (1 = sequential, higher = parallel)
+MAX_PROCESSES=1
+
+# Detailed logging (true/false)
 DETAILED="true"
 
-# Multiprocessing settings
-# MAX_PROCESSES: number of parallel workers (1 = sequential, 0 = auto)
-MAX_PROCESSES=4
-
-# Cache settings (true/false)
-# When true: reuses LLM responses from cache
+# Cache LLM responses (true/false)
 USE_CACHE="true"
+
+# Initial frames to sample per video
+INITIAL_FRAMES=5
 
 ################################################################################
 # Advanced Settings (usually don't need to change)
@@ -126,8 +113,10 @@ USE_CACHE="true"
 # Configuration file to use as base
 CONFIG="default"
 
-# Caption method: multi_level, detailed, group
-CAPTION_METHOD="multi_level"
+# Dataset paths
+VIDEO_LIST="data/EgoSchema_test/video_list.txt"
+ANNOTATION_FILE="data/EgoSchema_test/annotations.json"
+VIDEO_DIR="data/EgoSchema_test/videos"
 
 ################################################################################
 # Environment Setup
@@ -150,18 +139,13 @@ fi
 ################################################################################
 # Derived Settings (auto-computed)
 
-# Use SCHEDULER_MODEL for viewer if not specified
-if [ -z "$VIEWER_MODEL" ]; then
-    VIEWER_MODEL="$SCHEDULER_MODEL"
+# Use SCHEDULER_MODEL for checker if not specified
+if [ -z "$CHECKER_MODEL" ]; then
+    CHECKER_MODEL="$SCHEDULER_MODEL"
 fi
 
-# Map dataset name to paths
-VIDEO_LIST="data/EgoSchema_test/video_list.txt"
-ANNOTATION_FILE="data/EgoSchema_test/annotations.json"
-VIDEO_DIR="data/EgoSchema_test/videos"
-
 # Convert count for CLI (0 means use all, -1 means all)
-if [ "$COUNT" -eq 0 ]; then
+if [ "$COUNT" -eq 0 ] || [ "$COUNT" -eq -1 ]; then
     MAX_VIDEOS="-1"
 else
     MAX_VIDEOS="$COUNT"
@@ -170,7 +154,6 @@ fi
 # Set logging based on detailed mode
 if [ "$DETAILED" = "true" ]; then
     LLM_LOGGING="--llm-logging"
-    echo "[INFO] Detailed mode enabled - LLM interactions will be logged"
 else
     LLM_LOGGING=""
 fi
@@ -186,20 +169,23 @@ fi
 # Print Configuration Summary
 
 echo "============================================================"
-echo "VideoAgent Evaluation"
+echo "VideoAgent Multi-Agent Evaluation"
 echo "============================================================"
 echo ""
-echo "Configuration:"
-echo "  Round Name:       $ROUND_NAME"
-echo "  Scheduler Model:  $SCHEDULER_MODEL"
-echo "  Viewer Model:     $VIEWER_MODEL"
-echo "  Dataset:        $DATASET"
-echo "  Video List:     $VIDEO_LIST"
-echo "  Count:          $COUNT (MAX_VIDEOS=$MAX_VIDEOS)"
-echo "  Max Rounds:     $MAX_ROUNDS"
-echo "  Max Processes:  $MAX_PROCESSES"
-echo "  Detailed:       $DETAILED"
-echo "  Use Cache:      $USE_CACHE"
+echo "Models:"
+echo "  Scheduler (Solver):  $SCHEDULER_MODEL"
+echo "  Viewer (Caption):    $VIEWER_MODEL"
+echo "  Checker (Evaluate):  $CHECKER_MODEL"
+echo ""
+echo "Settings:"
+echo "  Round Name:          $ROUND_NAME"
+echo "  Count:               $COUNT (MAX_VIDEOS=$MAX_VIDEOS)"
+echo "  Max Rounds:          $MAX_ROUNDS"
+echo "  Confidence:          $CONFIDENCE_THRESHOLD/10"
+echo "  Initial Frames:      $INITIAL_FRAMES"
+echo "  Max Processes:       $MAX_PROCESSES"
+echo "  Detailed:            $DETAILED"
+echo "  Use Cache:           $USE_CACHE"
 echo ""
 echo "============================================================"
 echo ""
@@ -215,13 +201,15 @@ python -m video_agent.cli \
     --experiment-name "$ROUND_NAME" \
     --scheduler-model "$SCHEDULER_MODEL" \
     --viewer-model "$VIEWER_MODEL" \
+    --checker-model "$CHECKER_MODEL" \
     --video-list "$VIDEO_LIST" \
     --annotation-file "$ANNOTATION_FILE" \
     --video-dir "$VIDEO_DIR" \
     --max-videos "$MAX_VIDEOS" \
     --max-rounds "$MAX_ROUNDS" \
+    --confidence-threshold "$CONFIDENCE_THRESHOLD" \
+    --initial-frames "$INITIAL_FRAMES" \
     --max-processes "$MAX_PROCESSES" \
-    --caption-method "$CAPTION_METHOD" \
     $LLM_LOGGING \
     $CACHE_FLAG
 
@@ -233,8 +221,6 @@ EXIT_CODE=$?
 echo ""
 if [ $EXIT_CODE -eq 0 ]; then
     echo "[SUCCESS] Evaluation completed at $(date '+%Y-%m-%d %H:%M:%S')"
-    echo ""
-    echo "Results saved to: results/${ROUND_NAME}__*"
     echo ""
     
     # Find and display the output directory
@@ -249,13 +235,6 @@ if [ $EXIT_CODE -eq 0 ]; then
             cat "$OUTPUT_DIR/summary.txt"
             echo ""
         fi
-        
-        # Display accuracy if exists
-        if [ -f "$OUTPUT_DIR/accuracy.txt" ]; then
-            echo "--- Accuracy ---"
-            cat "$OUTPUT_DIR/accuracy.txt"
-            echo ""
-        fi
     fi
 else
     echo "[ERROR] Evaluation failed with exit code $EXIT_CODE"
@@ -263,4 +242,3 @@ else
 fi
 
 echo "============================================================"
-

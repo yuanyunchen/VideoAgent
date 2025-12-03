@@ -15,20 +15,21 @@ def setup_logger(name: str, output_dir: str, level: str = "INFO",
         name: Logger name
         output_dir: Output directory for log files
         level: Logging level
-        enable_llm_logging: Whether to enable LLM detailed logging
+        enable_llm_logging: Whether to enable LLM detailed logging (uses DEBUG level)
         
     Returns:
         Configured logger
     """
     logger = logging.getLogger(name)
     
+    # Set level based on llm_logging flag
     log_level = logging.DEBUG if enable_llm_logging else getattr(logging, level.upper())
     logger.setLevel(log_level)
     
     # Clear existing handlers
     logger.handlers.clear()
     
-    # File handler
+    # Single file handler - logging.log
     os.makedirs(output_dir, exist_ok=True)
     file_handler = logging.FileHandler(os.path.join(output_dir, "logging.log"))
     file_handler.setLevel(log_level)
@@ -41,7 +42,7 @@ def setup_logger(name: str, output_dir: str, level: str = "INFO",
 
 def create_logger(log_file: str) -> logging.Logger:
     """
-    Create logger for a specific file.
+    Create logger (backward compatibility).
     
     Args:
         log_file: Path to log file
@@ -64,28 +65,3 @@ def create_logger(log_file: str) -> logging.Logger:
     
     return logger
 
-
-def create_video_logger(video_id: str, output_dir: str) -> logging.Logger:
-    """
-    Create logger for a specific video processing.
-    
-    Args:
-        video_id: Video identifier
-        output_dir: Output directory for log file
-        
-    Returns:
-        Configured logger
-    """
-    logger = logging.getLogger(f"VideoAgent.Video.{video_id}")
-    logger.setLevel(logging.INFO)
-    logger.handlers.clear()
-    
-    os.makedirs(output_dir, exist_ok=True)
-    video_log_file = os.path.join(output_dir, "logging.log")
-    video_handler = logging.FileHandler(video_log_file)
-    video_handler.setLevel(logging.INFO)
-    video_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-    video_handler.setFormatter(video_formatter)
-    logger.addHandler(video_handler)
-    
-    return logger

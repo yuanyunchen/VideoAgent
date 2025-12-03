@@ -15,7 +15,7 @@ from video_agent.utils.config import load_config, list_configs, update_config
 def parse_arguments():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description="VideoAgent: Multi-agent video understanding with question answering",
+        description="VideoAgent: Video analysis with question answering",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -38,22 +38,20 @@ Examples:
     )
     
     # Model overrides
-    parser.add_argument("--scheduler-model", help="Model for Solver agent (decision making)")
-    parser.add_argument("--viewer-model", help="Model for caption generation (must support vision)")
-    parser.add_argument("--checker-model", help="Model for Checker agent (confidence evaluation)")
+    parser.add_argument("--scheduler-model", help="Model for Q&A and evaluation")
+    parser.add_argument("--viewer-model", help="Model for caption generation")
     
     # API configuration
     parser.add_argument("--aiml-api-key", dest="aiml_api_key", help="Override AIML API key")
     
     # Processing overrides
-    parser.add_argument("--max-rounds", type=int, dest="max_rounds", 
-                       help="Maximum steps in main loop (default: 10)")
-    parser.add_argument("--max-videos", type=int, dest="max_test_videos", 
-                       help="Number of videos to process (-1 for all)")
-    parser.add_argument("--initial-frames", type=int, dest="default_initial_frames",
-                       help="Number of initial frames to sample (default: 5)")
-    parser.add_argument("--confidence-threshold", type=int, dest="confidence_threshold",
-                       help="Confidence threshold to accept answer (1-10, default: 8)")
+    parser.add_argument("--max-rounds", type=int, dest="max_rounds", help="Maximum analysis rounds (default: 5)")
+    parser.add_argument("--max-videos", type=int, dest="max_test_videos", help="Number of videos to process (-1 for all)")
+    parser.add_argument("--caption-method", dest="caption_method", 
+                       choices=["multi_level", "detailed", "group"],
+                       help="Caption generation method")
+    parser.add_argument("--video-processing-method", dest="video_processing_method", 
+                       help="Video processing method")
     
     # Data path overrides
     parser.add_argument("--video-list", dest="test_video_list_file",
@@ -66,8 +64,10 @@ Examples:
     # Execution overrides
     parser.add_argument("--experiment-name", dest="experiment_name", 
                        help="Experiment name for output directory")
+    parser.add_argument("--no-multiprocess", action="store_false", dest="multi_process", 
+                       help="Disable multiprocessing")
     parser.add_argument("--max-processes", type=int, dest="max_processes", 
-                       help="Number of parallel processes (default: 1)")
+                       help="Number of parallel processes (default: auto)")
     parser.add_argument("--llm-logging", action="store_true", dest="enable_llm_logging", 
                        help="Enable detailed LLM logging")
     parser.add_argument("--no-cache", action="store_false", dest="use_cache",
@@ -77,26 +77,20 @@ Examples:
     parser.add_argument("--quiet", "-q", action="store_true",
                        help="Suppress progress output")
     
-    # Backward compatibility with old CLI
-    parser.add_argument("--caption-method", dest="caption_method",
-                       help="(Deprecated) Caption method - ignored in new system")
-    
     return parser.parse_args()
 
 
 def print_header(config):
     """Print experiment header."""
     print("=" * 60)
-    print("VideoAgent Multi-Agent Evaluation")
+    print("VideoAgent Evaluation")
     print("=" * 60)
     print(f"Start Time:      {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"Experiment:      {config.get('experiment_name', 'default')}")
     print(f"Scheduler Model: {config.get('scheduler_model', 'N/A')}")
     print(f"Viewer Model:    {config.get('viewer_model', 'N/A')}")
-    print(f"Checker Model:   {config.get('checker_model', config.get('scheduler_model', 'N/A'))}")
     print(f"Max Videos:      {config.get('max_test_videos', -1)}")
-    print(f"Max Steps:       {config.get('max_rounds', 10)}")
-    print(f"Confidence:      {config.get('confidence_threshold', 8)}/10")
+    print(f"Max Rounds:      {config.get('max_rounds', 1)}")
     print(f"Max Processes:   {config.get('max_processes', 1)}")
     print("=" * 60)
     print()
@@ -139,9 +133,9 @@ def main():
         print(f"Error loading configuration: {e}", file=sys.stderr)
         return 1
     
-    # Apply overrides from command line
+    # Apply overrides
     overrides = {k: v for k, v in vars(args).items() 
-                if v is not None and k not in ['config', 'list_configs', 'quiet', 'caption_method']}
+                if v is not None and k not in ['config', 'list_configs', 'quiet']}
     
     if overrides:
         config = update_config(config, **overrides)
@@ -159,8 +153,6 @@ def main():
         return 130
     except Exception as e:
         print(f"Error during experiment: {e}", file=sys.stderr)
-        import traceback
-        traceback.print_exc()
         return 1
     
     # Print summary
