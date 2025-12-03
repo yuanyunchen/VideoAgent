@@ -13,7 +13,7 @@ MODEL="x-ai/grok-4-1-fast-non-reasoning"
 NUM_FRAMES=5
 
 # Test Configuration
-ROUND_NAME="polished_5_frame_eval"
+ROUND_NAME="chat_pipeline_5_frame_eval"
 COUNT=100
 
 # Parallel Processing

@@ -1,0 +1,134 @@
+
+# Role: Video Understanding System Architect
+# Task: Implement a Multi-Agent Video Analysis Algorithm
+
+请根据以下详细的技术规范，用 Python 实现一个视频理解智能体系统。
+
+## 1. 系统概览 (System Overview)
+该系统旨在通过多轮交互回答关于视频内容的问题。系统包含三个核心组件：
+1.  **Memory (State)**: 存储基础的视频帧描述 (Captions)。
+2.  **Solver Agent (Stateful)**: 这是一个持久化的对话Session。它接收问题，决定是“检索更多帧”还是“回答问题”。它必须先进行思维链思考 (Chain of Thought)，然后输出 JSON 格式的决策。
+3.  **Checker Agent (Stateless)**: 这是一个无状态的评估器。每次回答生成后，都会初始化一个新的 Checker 来评估 Solver 答案的置信度 (Confidence 1-5)。
+
+## 2. 数据结构与协议 (Data Structures & Protocols)
+
+请使用 Pydantic 或 TypedDict 定义以下标准交互格式：
+
+### A. Memory Unit
+- `frame_id` (int): 帧的索引。
+- `caption` (str): 该帧的文本描述。
+
+### B. Solver 输出协议 (Solver Response Schema)
+Solver 的回复必须包含两部分：自然语言的思考过程（用于推理）和 JSON 格式的最终行动。
+*注意：在解析时，需要从 LLM 的回复中提取 JSON 代码块。*
+
+JSON 结构如下：
+```json
+{
+  "thought_summary": "简要总结思考过程",
+  "action_type": "retrieve_more_frames" | "answer_question",
+  "action_payload": {
+    // 如果 action_type 是 "retrieve_more_frames"
+    "count": 5, // 请求多少新帧
+    "focus": "寻找具体某人的动作..." // (可选) 关注点
+    
+    // 如果 action_type 是 "answer_question"
+    "final_answer": "问题的最终答案...",
+    "explanation": "详细的解释..."
+  }
+}
+````
+
+### C. Checker 输出协议 (Checker Response Schema)
+
+```json
+{
+  "confidence_score": 3, // 整数 1-5
+  "feedback": "答案缺乏关于..." // 对 Solver 的具体反馈或批评
+}
+```
+
+## 3\. 模块详细规范 (Module Specifications)
+
+### A. Solver Agent (Class: Solver)
+
+  * **特性**: Stateful (维护 `chat_history`)。
+  * **System Prompt**:
+    > "你是一个视频理解专家。你的记忆由视频帧的 Caption 组成。接到问题后，先进行详细的推理思考，然后**严格**以 JSON 格式输出下一步行动。你可以选择获取更多帧 (`retrieve_more_frames`) 或回答问题 (`answer_question`)。"
+  * **输入**: 接收 User 消息或 System 反馈（作为新的 User 消息追加到历史）。
+
+### B. Checker Agent (Function: evaluate\_answer)
+
+  * **特性**: Stateless (无状态，每次调用都是新的 LLM API call)。
+  * **System Prompt**:
+    > "你是一个严格的考官。根据提供的 Context (Frame Captions) 和 Question，评估 Answer 的准确性。给出 1-5 的置信度打分。如果分数低于 4，必须给出具体的改进反馈。"
+  * **输入**: Question, Current Memory (Context), Solver's Answer & Explanation.
+
+### C. 模拟工具 (Mock Tools)
+
+  * `fetch_new_frames(count: int)`: 模拟函数，返回新的 list[MemoryUnit]。
+
+## 4\. 主算法流程 (Main Execution Loop)
+
+请实现 `run_video_agent(question, initial_memory)` 函数：
+
+1.  **初始化**:
+
+      - 加载初始的 5 个帧 Caption 到 `current_memory`。
+      - 初始化 `Solver` 实例。
+      - 将 `question` 和 `initial_memory` 格式化后发送给 Solver。
+
+2.  **循环 (While loop, max\_steps=10)**:
+
+    a.  **获取 Solver 响应**:
+    \- 调用 Solver LLM。
+    \- 解析输出，分离 `Thinking` (Text) 和 `Action` (JSON)。
+
+    b.  **分支判断 (根据 action\_type)**:
+
+    ```
+    - **CASE 1: `retrieve_more_frames`**:
+        - 调用 `fetch_new_frames` 工具。
+        - **关键交互**: 将新帧的 Captions 格式化为文本字符串（例如："System Notification: Retrieved 5 new frames: [Frame 6: xxx]..."）。
+        - 将此文本作为 **User Message** 发送回 Solver 的对话历史。
+        - *Continue Loop*.
+
+    - **CASE 2: `answer_question`**:
+        - 提取 `final_answer` 和 `explanation`。
+        - 调用 `Checker Agent` 进行评估。
+        - **检查置信度**:
+            - **IF `confidence_score` >= 4**:
+                - 任务成功。返回最终结果 (JSON)。
+                - *Break Loop*.
+            - **IF `confidence_score` < 4**:
+                - 格式化反馈（例如："System Feedback: Confidence Score: 2/5. Reason: {feedback}. Please try again."）。
+                - 将此文本作为 **User Message** 发送回 Solver 的对话历史。
+                - *Continue Loop*.
+    ```
+
+    c.  **错误处理 (Error Handling)**:
+    \- 如果 Solver 输出的 JSON 解析失败，构建一条错误提示消息 ("System Error: Invalid JSON format, please output strictly valid JSON.") 发回给 Solver，让其重试。
+
+3.  **终止**:
+
+      - 如果超过最大步数，返回失败或当前的最佳答案。
+
+## 5\. 输出要求 (Implementation Requirements)
+
+  - 使用 Python 编写。
+  - 模拟 LLM 调用接口 (可以写一个 `mock_llm_call` 函数或使用 LangChain/OpenAI SDK 占位符)。
+  - 代码要有良好的注释，特别是关于状态流转的部分。
+  - 实现 JSON 解析的鲁棒性 (使用 try-except)。
+
+<!-- end list -->
+
+```
+
+***
+
+### 给你的额外建议 (Tips for you):
+
+1.  **对话历史管理**：在这个Prompt中，我特别强调了 `retrieve_more_frames` 获取到的新数据，以及 `Checker` 的反馈，都是封装成类似 `User Message` 的形式“喂”回给 Solver 的。这符合你说的“以对话形式传回”。
+2.  **思考与格式分离**：强制要求 Solver 先输出思考（Thought），再输出 JSON。这在 Prompt Engineering 中非常重要，因为让模型直接输出 JSON 容易导致逻辑退化（模型没想清楚就填表了）。
+3.  **Checker 的独立性**：代码实现时，Solver 应该是一个 Class 实例（保存 `self.messages`），而 Checker 应该是一个纯函数，不保存任何历史，只看当前的 Input。
+
