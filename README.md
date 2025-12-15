@@ -4,13 +4,26 @@ A multi-tool video understanding agent built with LangGraph for long-form video 
 
 ## Overview
 
-VideoAgent is a ReAct-style agent that combines large language models with specialized video analysis tools to answer complex questions about video content. The agent:
+VideoAgent is a modular agentic framework that employs a large language model (LLM) as a central controller for perception, decision-making, and action execution. The system adopts a **ReAct-style workflow** for iterative, query-driven evidence gathering, enabling efficient and accurate analysis over long videos without relying on predefined workflows or heavy pre-computation.
 
-1. **Receives video context** with initial frame captions and video description
-2. **Iteratively selects and calls tools** (sampling, detection, Q&A, etc.)
-3. **Submits answer** when confident or when reaching tool call limit
+### Key Features
 
-The system is evaluated on [EgoSchema](https://egoschema.github.io/), a challenging benchmark of 500 egocentric videos requiring long-form temporal understanding.
+- **Iterative Reasoning**: ReAct-based workflow that progressively refines hypotheses through temporally grounded evidence gathering
+- **Flexible Tool Orchestration**: Dynamic coordination of specialized vision experts via a unified interface for problem-oriented temporal localization and visual perception
+- **Hierarchical Memory**: Structured memory organization (Task Context → Video Memory → Tool History → Reasoning State) for coherent long-term reasoning
+- **Multi-GPU Support**: Centralized tool server with GPU-aware resource management for parallel processing
+- **Model-Aware Caching**: Efficient caching for captions and descriptions to reduce redundant computation
+
+### Performance
+
+Evaluated on the [EgoSchema](https://egoschema.github.io/) benchmark (500 egocentric videos, ~3 minutes each):
+
+| Method | Accuracy | Avg. Frames |
+|--------|----------|-------------|
+| GPT-4V | 63.5% | - |
+| InternVideo2.5 | 63.5% | 128 |
+| Tarsier | 68.6% | 128 |
+| **VideoAgent (Ours)** | **70.8%** | **22.5** |
 
 ## Architecture
 
@@ -19,171 +32,244 @@ The system is evaluated on [EgoSchema](https://egoschema.github.io/), a challeng
 │                              VideoAgent                                      │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
-│  ┌──────────────────────────────────────────────────────────────────────┐   │
-│  │                         LangGraph Agent                               │   │
-│  │  ┌────────────┐    ┌────────────┐    ┌────────────────────────────┐  │   │
-│  │  │   Agent    │ ─▶ │   Tools    │ ─▶ │  Force Answer (if needed)  │  │   │
-│  │  │    Node    │ ◀─ │    Node    │    │                            │  │   │
-│  │  └────────────┘    └────────────┘    └────────────────────────────┘  │   │
-│  └──────────────────────────────────────────────────────────────────────┘   │
-│                                    │                                         │
-│                                    ▼                                         │
-│  ┌──────────────────────────────────────────────────────────────────────┐   │
-│  │                          Tool Manager                                 │   │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐               │   │
-│  │  │   Sampling   │  │  Detection   │  │     Q&A      │  ...          │   │
-│  │  │    Tools     │  │    Tools     │  │    Tools     │               │   │
-│  │  └──────────────┘  └──────────────┘  └──────────────┘               │   │
-│  └──────────────────────────────────────────────────────────────────────┘   │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │                      LangGraph Agent (ReAct)                          │  │
+│  │  ┌─────────────┐    ┌─────────────┐    ┌──────────────────────────┐   │  │
+│  │  │    Agent    │ ─▶ │    Tools    │ ─▶ │ Force Answer (if needed) │   │  │
+│  │  │     Node    │ ◀─ │     Node    │    │                          │   │  │
+│  │  └─────────────┘    └─────────────┘    └──────────────────────────┘   │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                                     │                                        │
+│  ┌──────────────────────────────────┼────────────────────────────────────┐  │
+│  │                    Hierarchical Memory                                │  │
+│  │  ┌──────────────┐ ┌──────────────┐ ┌────────────┐ ┌───────────────┐   │  │
+│  │  │Task Context  │ │ Video Memory │ │Tool History│ │Reasoning State│   │  │
+│  │  │(Q + Choices) │ │(Frames+Caps) │ │  (Q&A Log) │ │ (Hypotheses)  │   │  │
+│  │  └──────────────┘ └──────────────┘ └────────────┘ └───────────────┘   │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                                     │                                        │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │                         Tool Manager                                  │  │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐    │  │
+│  │  │   Q&A    │ │Retrieval │ │Observation│ │Detection │ │  ...     │    │  │
+│  │  │  Tools   │ │  Tools   │ │   Tools  │ │  Tools   │ │          │    │  │
+│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘    │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
 │                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
-
-## Features
-
-- **ReAct-style Agent**: LLM-driven tool selection with reasoning
-- **Multi-Tool Support**: Configurable set of video analysis tools
-- **Auto-Captioning**: Frame-returning tools automatically caption results
-- **Multi-GPU Support**: Resource management for parallel processing
-- **Caching**: Model-aware caching for captions and descriptions
 
 ## Project Structure
 
 ```
 VideoAgent/
-├── video_agent_tools/              # Main Python package
-│   ├── __init__.py                 # Package exports
+├── video_agent_tools/              # Main agent package
 │   ├── cli.py                      # Command-line interface
 │   ├── evaluation.py               # Batch evaluation framework
-│   ├── graph.py                    # LangGraph agent definition
+│   ├── graph.py                    # LangGraph agent (ReAct workflow)
 │   ├── prompts.py                  # Agent prompts and templates
-│   ├── state.py                    # State definitions
+│   ├── state.py                    # State & memory definitions
 │   ├── tools.py                    # Tool manager
-│   ├── resource_management/        # GPU resource management
-│   │   ├── core.py                 # Base resource classes
-│   │   ├── gpu_manager.py          # Multi-GPU management
-│   │   ├── tool_server.py          # Central tool server
+│   ├── resource_management/        # Multi-GPU resource management
+│   │   ├── gpu_manager.py          # GPU allocation & scheduling
+│   │   ├── tool_server.py          # Centralized tool server
 │   │   └── tool_client.py          # Worker tool client
-│   └── utils/                      # Utility modules
-│       ├── logging.py              # Logging utilities
-│       ├── tool_cache.py           # Tool result caching
-│       └── video.py                # Video processing
+│   └── utils/
+│       ├── logging.py              # Structured logging
+│       ├── tool_cache.py           # Model-aware caching
+│       └── video.py                # Video processing utilities
 │
-├── tools/                          # Tool implementations
+├── tools/                          # Tool interface layer
 │   ├── interface_base.py           # Base Interface class
-│   └── interface/                  # Tool interfaces
-│       ├── __init__.py             # Tool registry
-│       ├── image_captioning.py     # OmniCaptioner, API captioning
-│       ├── internvideo2_5_interface.py  # InternVideo2.5 Q&A
-│       ├── object_detection.py     # YOLO-World, YOLOE
-│       ├── object_description.py   # DAM region description
-│       ├── temporal_spatial_understanding.py  # TStar, VideoTree
-│       ├── view_frame.py           # Frame viewing
-│       └── visual_qa.py            # General VQA
+│   ├── interface/                  # Tool interfaces (see below)
+│   └── models/                     # Model weights (gitignored)
 │
 ├── configs/                        # Configuration files
-│   ├── default.yaml                # Default settings
-│   └── models.yaml                 # Model reference
-│
-├── scripts/                        # Evaluation scripts
-│   └── template/
-│       └── eval.sh                 # Evaluation template
-│
-├── data/                           # Dataset directory
-│   └── EgoSchema_test/
-│       ├── annotations.json        # Questions and answers
-│       ├── video_list.txt          # Video IDs
-│       └── videos/                 # Video files (gitignored)
-│
-├── requirements.txt                # Python dependencies
-├── .env.example                    # Environment template
-└── .gitignore                      # Git ignore rules
+├── scripts/template/eval.sh        # Evaluation script template
+├── data/EgoSchema_test/            # Dataset directory
+├── requirements.txt
+└── .env.example
 ```
 
-## Quick Start
+## Installation
 
-### Prerequisites
-
-- Python 3.9+
-- CUDA-capable GPU (for local tools)
-- API key for LLM service (supports OpenAI-compatible APIs)
-
-### Installation
-
-1. **Clone the repository**
+### 1. Clone Repository
 
 ```bash
-git clone https://github.com/your-username/VideoAgent.git
+git clone https://github.com/yuanyunchen/VideoAgent.git
 cd VideoAgent
 ```
 
-2. **Create environment**
+### 2. Create Environment
 
 ```bash
 conda create -n videoagent python=3.10
 conda activate videoagent
 ```
 
-3. **Install dependencies**
+### 3. Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 
 # Install PyTorch with CUDA (adjust for your CUDA version)
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+
+# For local tools (optional, see Model Setup below)
+pip install transformers accelerate ultralytics
 ```
 
-4. **Configure API key**
+### 4. Configure API Key
 
 ```bash
 cp .env.example .env
-# Edit .env and add your API key:
+# Edit .env:
 # AIML_API_KEY=your_api_key_here
 ```
 
-### Prepare Dataset
-
-1. Download EgoSchema videos from [EgoSchema](https://egoschema.github.io/)
-2. Place videos in `data/EgoSchema_test/videos/`
-3. Ensure `annotations.json` and `video_list.txt` are in `data/EgoSchema_test/`
-
-### Running Experiments
-
-#### Option 1: Using Evaluation Script (Recommended)
+### 5. Prepare Dataset
 
 ```bash
-# Copy and configure the template
+# Download EgoSchema videos from https://egoschema.github.io/
+# Place videos in data/EgoSchema_test/videos/
+```
+
+## Tool Interface System
+
+VideoAgent uses a **decoupled architecture** separating the Interface Layer from the Model Layer. The agent interacts with abstract interfaces, allowing seamless model updates without changing agent logic.
+
+### Interface Architecture
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                         Agent Layer                               │
+│   (Sees only tool descriptions, input schemas, formatted output)  │
+└──────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                      Interface Layer (tools/interface/)           │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐   │
+│  │ AGENT_NAME      │  │ AGENT_DESCRIPTION│  │ AGENT_INPUT_    │   │
+│  │ AGENT_DESCRIPTION│  │ AGENT_INPUT_    │  │ SCHEMA          │   │
+│  │ format_output() │  │ SCHEMA          │  │ format_output() │   │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘   │
+└──────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                       Model Layer (tools/models/)                 │
+│  InternVideo2.5 | VideoTree | TStar | YOLO-World | DAM | ...     │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### Available Tools
+
+| Category | Tool | Interface | Backend Model |
+|----------|------|-----------|---------------|
+| **Q&A** | `internvideo_general_qa` | `InternVideoGeneralQA` | InternVideo2.5-Chat-8B |
+| | `internvideo_description` | `InternVideoDescription` | InternVideo2.5-Chat-8B |
+| | `general_vqa` | `GeneralVQA` | API-based MLLM |
+| | `temporal_spatial_qa` | `TStarTemporalSpatialQA` | TStar + LLM |
+| **Retrieval** | `temporal_sample_frames` | `VideoTreeSampling` | VideoTree (CLIP) |
+| | `temporal_spatial_sample_frames` | `TStarSampling` | TStar (MobileCLIP) |
+| **Observation** | `view_frame` | `ViewFrame` | - |
+| | `caption_image` | `OmniCaptionerCaptioning` | OmniCaptioner |
+| | `detailed_captioning` | `APICaptioning` | API-based MLLM |
+| | `describe_region` | `DAMDescription` | DAM (Describe Anything) |
+| **Detection** | `detect_objects` | `YOLOWorldDetection` | YOLO-World |
+| | `detect_all_objects` | `YOLOEPromptFreeDetection` | YOLOE |
+
+## Model Setup
+
+Local tools require downloading model weights to `tools/models/`. Each tool interface specifies its required model.
+
+### Required Models
+
+#### InternVideo2.5 (for `internvideo_general_qa`, `internvideo_description`)
+
+```bash
+# Download from HuggingFace
+cd tools/models
+git lfs install
+git clone https://huggingface.co/OpenGVLab/InternVideo2_5_Chat_8B
+```
+
+#### OmniCaptioner (for `caption_image`)
+
+```bash
+cd tools/models
+git clone https://huggingface.co/U4R/OmniCaptioner
+```
+
+#### VideoTree (for `temporal_sample_frames`)
+
+VideoTree uses CLIP embeddings. The interface automatically downloads CLIP weights on first use.
+
+#### TStar (for `temporal_spatial_sample_frames`, `temporal_spatial_qa`)
+
+```bash
+cd tools/models
+git clone https://github.com/TStar-Labs/TStar
+
+# Download MobileCLIP weights
+wget https://docs-assets.developer.apple.com/ml-research/datasets/mobileclip/mobileclip_blt.pt
+```
+
+#### YOLO-World (for `detect_objects`)
+
+```bash
+pip install ultralytics
+# Weights are downloaded automatically on first use
+```
+
+#### DAM (for `describe_region`)
+
+```bash
+cd tools/models
+git clone https://github.com/tsinghua-fib-lab/Describe-Anything-Model describe-anything
+
+# Follow DAM installation instructions in its README
+```
+
+### API-Only Mode
+
+If you don't want to set up local models, you can use API-only tools:
+
+```bash
+TOOLS="general_vqa,view_frame,detailed_captioning"
+CAPTIONER="gpt-4o-mini"  # Use API for captioning
+```
+
+## Running Experiments
+
+### Using Evaluation Script (Recommended)
+
+```bash
+# Copy template
 cp scripts/template/eval.sh scripts/my_experiment.sh
 
-# Edit configuration (model, tools, etc.)
+# Edit configuration
 vim scripts/my_experiment.sh
 
-# Run evaluation
+# Key settings:
+AGENT_MODEL="x-ai/grok-4-1-fast-reasoning"
+TOOLS="internvideo_general_qa,temporal_sample_frames,view_frame,detect_objects"
+COUNT=100               # Number of videos (0 = all)
+MAX_TOOL_CALLS=20       # Max iterations
+INITIAL_FRAMES=5        # Initial context
+
+# Run
 chmod +x scripts/my_experiment.sh
 ./scripts/my_experiment.sh
 ```
 
-Key settings in `eval.sh`:
-
-```bash
-# Agent model
-AGENT_MODEL="x-ai/grok-4-1-fast-reasoning"
-
-# Enabled tools
-TOOLS="internvideo_general_qa,temporal_sample_frames,view_frame,detect_objects"
-
-# Experiment settings
-COUNT=100               # Number of videos (0 = all)
-MAX_TOOL_CALLS=20       # Max tool calls per video
-INITIAL_FRAMES=5        # Initial frames to caption
-```
-
-#### Option 2: Using CLI Directly
+### Using CLI
 
 ```bash
 python -m video_agent_tools.cli \
     --model "gpt-4o-mini" \
-    --tools "temporal_sample_frames,view_frame,detect_objects" \
+    --tools "temporal_sample_frames,view_frame,general_vqa" \
     --max-tool-calls 15 \
     --max-videos 10 \
     --annotation-file data/EgoSchema_test/annotations.json \
@@ -195,93 +281,37 @@ python -m video_agent_tools.cli \
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--model` | LLM model for agent | `gpt-4o-mini` |
-| `--tools` | Comma-separated tool list | See default |
+| `--model` | LLM model for agent reasoning | `gpt-4o-mini` |
+| `--tools` | Comma-separated tool list | See eval.sh |
 | `--max-tool-calls` | Max tool calls per video | `10` |
 | `--max-parallel-tools` | Max tools per turn | `3` |
 | `--initial-frames` | Frames to caption initially | `5` |
-| `--max-videos` | Number of videos (-1 = all) | `-1` |
+| `--captioner` | Captioner (`omni-captioner` or API model) | `omni-captioner` |
 | `--num-workers` | Parallel workers | `1` |
-| `--captioner` | Caption model | `omni-captioner` |
-| `--experiment-name` | Experiment identifier | `tools_agent` |
-
-## Available Tools
-
-### Q&A Tools
-| Tool | Description | Backend |
-|------|-------------|---------|
-| `internvideo_general_qa` | General video Q&A (128 frames) | InternVideo2.5 |
-| `internvideo_description` | Video summary + action timeline | InternVideo2.5 |
-| `general_vqa` | General visual QA | API-based |
-
-### Frame Sampling
-| Tool | Description | Backend |
-|------|-------------|---------|
-| `temporal_sample_frames` | Sample diverse frames temporally | VideoTree |
-| `temporal_spatial_sample_frames` | Find frames with specific objects | TStar |
-
-### Detection & Description
-| Tool | Description | Backend |
-|------|-------------|---------|
-| `detect_objects` | Detect specific object categories | YOLO-World |
-| `detect_all_objects` | Detect all objects | YOLOE |
-| `describe_region` | Describe specific region | DAM |
-
-### Frame & Caption
-| Tool | Description | Backend |
-|------|-------------|---------|
-| `view_frame` | View specific frame(s) | Returns captions |
-| `detailed_captioning` | Detailed caption via API | MLLM |
+| `--max-videos` | Number of videos (-1 = all) | `-1` |
 
 ## Output Structure
 
 ```
 results/<experiment_name>__<model>_videos_<count>_<date>/
 ├── logging.log           # Full evaluation log
-├── result.json           # Complete results with per-video details
+├── result.json           # Complete results
 ├── metrics.csv           # Performance metrics
 ├── summary.txt           # Human-readable summary
-├── accuracy.txt          # Quick accuracy reference
+├── accuracy.txt          # Quick accuracy
 ├── experiment_config.yaml
-└── videos/               # Per-video outputs
+└── videos/
     └── <video_id>/
         ├── frames/       # Sampled frames (PNG)
         ├── llm.log       # Full LLM interaction log
-        └── result.json   # Video-specific result
+        └── result.json   # Per-video result
 ```
-
-## Configuration
-
-### Environment Variables
-
-Create `.env` file with:
-
-```bash
-# Required: API key (one of these)
-AIML_API_KEY=your_aiml_api_key
-# or
-OPENAI_API_KEY=your_openai_key
-
-# Optional: Custom API base URL
-AIML_BASE_URL=https://api.aimlapi.com/v1
-```
-
-### Supported Models
-
-The agent supports any OpenAI-compatible API. Recommended models:
-
-| Model | Provider | Use Case |
-|-------|----------|----------|
-| `gpt-4o-mini` | OpenAI | Good value, fast |
-| `x-ai/grok-4-1-fast-reasoning` | xAI | Fast reasoning |
-| `anthropic/claude-4-sonnet` | Anthropic | Strong reasoning |
-| `google/gemini-2.5-flash` | Google | Fast, 1M context |
 
 ## Extending VideoAgent
 
-### Adding New Tools
+### Adding a New Tool
 
-1. Create interface class in `tools/interface/`:
+1. **Create interface class** in `tools/interface/`:
 
 ```python
 from tools.interface_base import Interface, InterfaceCategory
@@ -291,32 +321,65 @@ class MyNewTool(Interface):
     CATEGORY = InterfaceCategory.DETECTION
     FUNCTIONALITY = "What this tool does"
     
+    # Agent-facing metadata
     AGENT_NAME = "my_new_tool"
-    AGENT_DESCRIPTION = "Description for agent"
+    AGENT_DESCRIPTION = "Description shown to agent"
     AGENT_INPUT_SCHEMA = {
-        "query": {"type": "str", "required": True, "description": "Input query"}
+        "query": {"type": "str", "required": True, "description": "Input query"},
+        "num_results": {"type": "int", "required": False, "default": 5}
     }
     
-    def __call__(self, video, query, **kwargs):
-        # Implementation
-        return {"result": "..."}
+    def initialize(self):
+        # Load model weights
+        self.model = load_model("tools/models/my_model")
+    
+    def __call__(self, video, query, num_results=5, **kwargs):
+        # Execute tool
+        result = self.model.process(video, query)
+        return {"result": result, "count": len(result)}
     
     @classmethod
     def format_output_for_agent(cls, output):
-        return output["result"]
+        # Format output as text for agent consumption
+        return f"Found {output['count']} results: {output['result']}"
 ```
 
-2. Register in `tools/interface/__init__.py`:
+2. **Register** in `tools/interface/__init__.py`:
 
 ```python
+from tools.interface.my_tool import MyNewTool
+
 INTERFACE_MAPPING["my_new_tool"] = MyNewTool
 ```
 
-3. Enable in evaluation script:
+3. **Enable** in evaluation:
 
 ```bash
 TOOLS="temporal_sample_frames,my_new_tool"
 ```
+
+## Configuration
+
+### Environment Variables
+
+```bash
+# .env file
+AIML_API_KEY=your_api_key      # Required: API key for LLM
+AIML_BASE_URL=https://api.aimlapi.com/v1  # Optional: API endpoint
+
+# Or use OpenAI directly
+OPENAI_API_KEY=your_openai_key
+```
+
+### Supported LLM Models
+
+| Model | Provider | Notes |
+|-------|----------|-------|
+| `gpt-4o-mini` | OpenAI | Good value |
+| `gpt-4o` | OpenAI | Best quality |
+| `x-ai/grok-4-1-fast-reasoning` | xAI | Fast reasoning |
+| `anthropic/claude-4-sonnet` | Anthropic | Strong reasoning |
+| `google/gemini-2.5-flash` | Google | 1M context |
 
 ## Acknowledgments
 
@@ -325,6 +388,8 @@ TOOLS="temporal_sample_frames,my_new_tool"
 - [InternVideo2.5](https://github.com/OpenGVLab/InternVideo) - Video understanding
 - [VideoTree](https://github.com/Ziyang412/VideoTree) - Frame sampling
 - [TStar](https://github.com/TStar-Labs/TStar) - Temporal-spatial understanding
+- [YOLO-World](https://github.com/AILab-CVC/YOLO-World) - Open-vocabulary detection
+- [DAM](https://github.com/tsinghua-fib-lab/Describe-Anything-Model) - Region description
 
 ## License
 
