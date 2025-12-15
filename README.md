@@ -1,79 +1,103 @@
 # VideoAgent
 
-A memory-augmented multimodal agent for long-form video understanding. VideoAgent implements an iterative analysis pipeline that combines vision-language models with intelligent frame sampling to answer complex questions about video content.
+A multi-tool video understanding agent built with LangGraph for long-form video question answering.
 
 ## Overview
 
-VideoAgent addresses the challenge of understanding long-form videos (e.g., 3-minute egocentric videos) by:
+VideoAgent is a ReAct-style agent that combines large language models with specialized video analysis tools to answer complex questions about video content. The agent:
 
-1. **Iterative Refinement**: Starting with initial frame samples and progressively refining analysis based on confidence levels
-2. **Memory-Augmented Processing**: Maintaining structured video memory with frame captions, event descriptions, and video overviews
-3. **Multi-Level Captioning**: Generating hierarchical descriptions from visual details to temporal event understanding
-4. **Intelligent Resampling**: Dynamically selecting additional frames from relevant video segments when initial analysis is insufficient
+1. **Receives video context** with initial frame captions and video description
+2. **Iteratively selects and calls tools** (sampling, detection, Q&A, etc.)
+3. **Submits answer** when confident or when reaching tool call limit
 
-The system is evaluated on the [EgoSchema](https://egoschema.github.io/) benchmark, a challenging dataset of 500 egocentric videos with multiple-choice questions requiring long-form temporal understanding.
+The system is evaluated on [EgoSchema](https://egoschema.github.io/), a challenging benchmark of 500 egocentric videos requiring long-form temporal understanding.
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              VideoAgent                                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌──────────────────────────────────────────────────────────────────────┐   │
+│  │                         LangGraph Agent                               │   │
+│  │  ┌────────────┐    ┌────────────┐    ┌────────────────────────────┐  │   │
+│  │  │   Agent    │ ─▶ │   Tools    │ ─▶ │  Force Answer (if needed)  │  │   │
+│  │  │    Node    │ ◀─ │    Node    │    │                            │  │   │
+│  │  └────────────┘    └────────────┘    └────────────────────────────┘  │   │
+│  └──────────────────────────────────────────────────────────────────────┘   │
+│                                    │                                         │
+│                                    ▼                                         │
+│  ┌──────────────────────────────────────────────────────────────────────┐   │
+│  │                          Tool Manager                                 │   │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐               │   │
+│  │  │   Sampling   │  │  Detection   │  │     Q&A      │  ...          │   │
+│  │  │    Tools     │  │    Tools     │  │    Tools     │               │   │
+│  │  └──────────────┘  └──────────────┘  └──────────────┘               │   │
+│  └──────────────────────────────────────────────────────────────────────┘   │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
 ## Features
 
-- Multi-model architecture with separate scheduler and viewer models
-- Configurable iterative refinement with confidence-based stopping
-- LLM response caching for efficient re-runs
-- Parallel video processing with multiprocessing support
-- Comprehensive evaluation metrics and logging
-- Standardized output structure for reproducible experiments
+- **ReAct-style Agent**: LLM-driven tool selection with reasoning
+- **Multi-Tool Support**: Configurable set of video analysis tools
+- **Auto-Captioning**: Frame-returning tools automatically caption results
+- **Multi-GPU Support**: Resource management for parallel processing
+- **Caching**: Model-aware caching for captions and descriptions
 
 ## Project Structure
 
 ```
 VideoAgent/
-├── configs/                      # Configuration files
-│   ├── default.yaml              # Default experiment configuration
-│   └── models.yaml               # Model pricing and capability reference
+├── video_agent_tools/              # Main Python package
+│   ├── __init__.py                 # Package exports
+│   ├── cli.py                      # Command-line interface
+│   ├── evaluation.py               # Batch evaluation framework
+│   ├── graph.py                    # LangGraph agent definition
+│   ├── prompts.py                  # Agent prompts and templates
+│   ├── state.py                    # State definitions
+│   ├── tools.py                    # Tool manager
+│   ├── resource_management/        # GPU resource management
+│   │   ├── core.py                 # Base resource classes
+│   │   ├── gpu_manager.py          # Multi-GPU management
+│   │   ├── tool_server.py          # Central tool server
+│   │   └── tool_client.py          # Worker tool client
+│   └── utils/                      # Utility modules
+│       ├── logging.py              # Logging utilities
+│       ├── tool_cache.py           # Tool result caching
+│       └── video.py                # Video processing
 │
-├── scripts/                      # Shell scripts and utilities
-│   ├── template/
-│   │   └── eval.sh               # Evaluation script template
-│   ├── run_default.sh            # Default experiment runner
-│   └── test.sh                   # Test experiment runner
+├── tools/                          # Tool implementations
+│   ├── interface_base.py           # Base Interface class
+│   └── interface/                  # Tool interfaces
+│       ├── __init__.py             # Tool registry
+│       ├── image_captioning.py     # OmniCaptioner, API captioning
+│       ├── internvideo2_5_interface.py  # InternVideo2.5 Q&A
+│       ├── object_detection.py     # YOLO-World, YOLOE
+│       ├── object_description.py   # DAM region description
+│       ├── temporal_spatial_understanding.py  # TStar, VideoTree
+│       ├── view_frame.py           # Frame viewing
+│       └── visual_qa.py            # General VQA
 │
-├── video_agent/                  # Main Python package
-│   ├── cli.py                    # Command-line interface
-│   ├── agent.py                  # Main VideoAgent orchestrator
-│   ├── core/
-│   │   └── video_memory.py       # VideoMemory class for frame/analysis state
-│   ├── processors/
-│   │   ├── caption_processor.py  # CaptionProcessor for frame analysis
-│   │   └── question_processor.py # QuestionProcessor for Q&A
-│   └── utils/
-│       ├── api.py                # AIMLClient for LLM API interactions
-│       ├── config.py             # Configuration management
-│       ├── cache.py              # CacheManager for response caching
-│       ├── logging_utils.py      # Logging utilities
-│       ├── video.py              # Video processing utilities
-│       └── parsing.py            # Text and JSON parsing utilities
+├── configs/                        # Configuration files
+│   ├── default.yaml                # Default settings
+│   └── models.yaml                 # Model reference
 │
-├── data/                         # Input data directory
-│   └── EgoSchema_test/           # EgoSchema test dataset
-│       ├── annotations.json      # Video annotations and questions
-│       ├── video_list.txt        # List of valid video IDs
-│       └── videos/               # Video files (.mp4)
+├── scripts/                        # Evaluation scripts
+│   └── template/
+│       └── eval.sh                 # Evaluation template
 │
-├── cache/                        # LLM response cache (gitignored)
+├── data/                           # Dataset directory
+│   └── EgoSchema_test/
+│       ├── annotations.json        # Questions and answers
+│       ├── video_list.txt          # Video IDs
+│       └── videos/                 # Video files (gitignored)
 │
-└── results/                      # Experiment outputs (gitignored)
-    └── [experiment_name]/
-        ├── logging.log           # Full evaluation log
-        ├── result.json           # Results with Q&A + summary stats
-        ├── metrics.csv           # Performance metrics table
-        ├── summary.txt           # Human-readable summary
-        ├── accuracy.txt          # Accuracy metrics
-        ├── experiment_config.yaml
-        └── videos/               # Per-video outputs
-            └── [video_id]/
-                ├── frames/       # Sampled frames as PNG
-                ├── memory.txt    # Video memory state
-                ├── question.txt  # Formatted question
-                └── result.json   # Video-specific results
+├── requirements.txt                # Python dependencies
+├── .env.example                    # Environment template
+└── .gitignore                      # Git ignore rules
 ```
 
 ## Quick Start
@@ -81,256 +105,227 @@ VideoAgent/
 ### Prerequisites
 
 - Python 3.9+
-- API key for LLM service (supports OpenAI-compatible APIs via [AIML API](https://aimlapi.com/))
-- Video dataset (EgoSchema or compatible format)
+- CUDA-capable GPU (for local tools)
+- API key for LLM service (supports OpenAI-compatible APIs)
 
 ### Installation
 
 1. **Clone the repository**
 
 ```bash
-git clone https://github.com/yourusername/VideoAgent.git
+git clone https://github.com/your-username/VideoAgent.git
 cd VideoAgent
 ```
 
-2. **Create and activate a virtual environment**
+2. **Create environment**
 
 ```bash
-# Using conda (recommended)
 conda create -n videoagent python=3.10
 conda activate videoagent
-
-# Or using venv
-python -m venv venv
-source venv/bin/activate  # Linux/macOS
-# venv\Scripts\activate   # Windows
 ```
 
 3. **Install dependencies**
 
 ```bash
 pip install -r requirements.txt
+
+# Install PyTorch with CUDA (adjust for your CUDA version)
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
 ```
 
-### Environment Configuration
-
-1. **Create environment file**
+4. **Configure API key**
 
 ```bash
-# Create .env file in project root
-touch .env
-```
-
-2. **Add your API credentials**
-
-```bash
-# .env
-AIML_API_KEY=your_api_key_here
-AIML_BASE_URL=https://api.aimlapi.com/v1  # Optional, this is the default
+cp .env.example .env
+# Edit .env and add your API key:
+# AIML_API_KEY=your_api_key_here
 ```
 
 ### Prepare Dataset
 
-1. Download the EgoSchema dataset videos
+1. Download EgoSchema videos from [EgoSchema](https://egoschema.github.io/)
 2. Place videos in `data/EgoSchema_test/videos/`
 3. Ensure `annotations.json` and `video_list.txt` are in `data/EgoSchema_test/`
 
 ### Running Experiments
 
-#### Option 1: Using the Template Script (Recommended)
-
-1. **Copy the evaluation template**
+#### Option 1: Using Evaluation Script (Recommended)
 
 ```bash
+# Copy and configure the template
 cp scripts/template/eval.sh scripts/my_experiment.sh
-```
 
-2. **Edit configuration parameters**
-
-```bash
+# Edit configuration (model, tools, etc.)
 vim scripts/my_experiment.sh
-```
 
-Key parameters to configure:
-
-```bash
-# Model Configuration
-SCHEDULER_MODEL="gpt-4o-mini"    # Model for Q&A and evaluation
-VIEWER_MODEL="gpt-4o-mini"       # Model for frame captioning (must support vision)
-
-# Experiment Settings
-ROUND_NAME="my_experiment"       # Experiment identifier
-COUNT=100                        # Number of videos (0 = full dataset)
-MAX_ROUNDS=3                     # Maximum refinement rounds
-MAX_PROCESSES=4                  # Parallel workers
-
-# Options
-USE_CACHE="true"                 # Reuse cached LLM responses
-DETAILED="true"                  # Enable verbose logging
-```
-
-3. **Run the experiment**
-
-```bash
+# Run evaluation
 chmod +x scripts/my_experiment.sh
 ./scripts/my_experiment.sh
+```
+
+Key settings in `eval.sh`:
+
+```bash
+# Agent model
+AGENT_MODEL="x-ai/grok-4-1-fast-reasoning"
+
+# Enabled tools
+TOOLS="internvideo_general_qa,temporal_sample_frames,view_frame,detect_objects"
+
+# Experiment settings
+COUNT=100               # Number of videos (0 = all)
+MAX_TOOL_CALLS=20       # Max tool calls per video
+INITIAL_FRAMES=5        # Initial frames to caption
 ```
 
 #### Option 2: Using CLI Directly
 
 ```bash
-python -m video_agent.cli \
-    --config default \
-    --experiment-name "test_run" \
-    --scheduler-model "gpt-4o-mini" \
-    --viewer-model "gpt-4o-mini" \
+python -m video_agent_tools.cli \
+    --model "gpt-4o-mini" \
+    --tools "temporal_sample_frames,view_frame,detect_objects" \
+    --max-tool-calls 15 \
     --max-videos 10 \
-    --max-rounds 3 \
-    --max-processes 4 \
-    --llm-logging
+    --annotation-file data/EgoSchema_test/annotations.json \
+    --video-dir data/EgoSchema_test/videos \
+    --experiment-name "test_run"
 ```
 
-#### CLI Options
+### CLI Options
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--config` | Base configuration file name | `default` |
-| `--experiment-name` | Name for the experiment | `default_experiment` |
-| `--scheduler-model` | Model for Q&A and evaluation | `gpt-4o-mini-2024-07-18` |
-| `--viewer-model` | Model for frame captioning | `gpt-4o-mini-2024-07-18` |
-| `--max-videos` | Number of videos to process (-1 = all) | `-1` |
-| `--max-rounds` | Maximum refinement rounds | `5` |
-| `--max-processes` | Number of parallel workers | `10` |
-| `--llm-logging` | Enable LLM interaction logging | `false` |
-| `--no-cache` | Disable LLM response caching | `false` |
-| `--video-list` | Path to video list file | from config |
-| `--annotation-file` | Path to annotations JSON | from config |
-| `--video-dir` | Path to video directory | from config |
+| `--model` | LLM model for agent | `gpt-4o-mini` |
+| `--tools` | Comma-separated tool list | See default |
+| `--max-tool-calls` | Max tool calls per video | `10` |
+| `--max-parallel-tools` | Max tools per turn | `3` |
+| `--initial-frames` | Frames to caption initially | `5` |
+| `--max-videos` | Number of videos (-1 = all) | `-1` |
+| `--num-workers` | Parallel workers | `1` |
+| `--captioner` | Caption model | `omni-captioner` |
+| `--experiment-name` | Experiment identifier | `tools_agent` |
+
+## Available Tools
+
+### Q&A Tools
+| Tool | Description | Backend |
+|------|-------------|---------|
+| `internvideo_general_qa` | General video Q&A (128 frames) | InternVideo2.5 |
+| `internvideo_description` | Video summary + action timeline | InternVideo2.5 |
+| `general_vqa` | General visual QA | API-based |
+
+### Frame Sampling
+| Tool | Description | Backend |
+|------|-------------|---------|
+| `temporal_sample_frames` | Sample diverse frames temporally | VideoTree |
+| `temporal_spatial_sample_frames` | Find frames with specific objects | TStar |
+
+### Detection & Description
+| Tool | Description | Backend |
+|------|-------------|---------|
+| `detect_objects` | Detect specific object categories | YOLO-World |
+| `detect_all_objects` | Detect all objects | YOLOE |
+| `describe_region` | Describe specific region | DAM |
+
+### Frame & Caption
+| Tool | Description | Backend |
+|------|-------------|---------|
+| `view_frame` | View specific frame(s) | Returns captions |
+| `detailed_captioning` | Detailed caption via API | MLLM |
+
+## Output Structure
+
+```
+results/<experiment_name>__<model>_videos_<count>_<date>/
+├── logging.log           # Full evaluation log
+├── result.json           # Complete results with per-video details
+├── metrics.csv           # Performance metrics
+├── summary.txt           # Human-readable summary
+├── accuracy.txt          # Quick accuracy reference
+├── experiment_config.yaml
+└── videos/               # Per-video outputs
+    └── <video_id>/
+        ├── frames/       # Sampled frames (PNG)
+        ├── llm.log       # Full LLM interaction log
+        └── result.json   # Video-specific result
+```
 
 ## Configuration
 
-### Default Configuration (`configs/default.yaml`)
+### Environment Variables
 
-```yaml
-# Model settings
-scheduler_model: "gpt-4o-mini-2024-07-18"
-viewer_model: "gpt-4o-mini-2024-07-18"
-llm_temperature: 0.7
-llm_max_tokens: 10000
+Create `.env` file with:
 
-# Processing settings
-max_rounds: 5
-max_retrieved_frames: 5
-min_retrieved_frames: 2
-default_initial_frames: 5
-input_frame_interval: 30
-caption_method: "multi_level"
+```bash
+# Required: API key (one of these)
+AIML_API_KEY=your_aiml_api_key
+# or
+OPENAI_API_KEY=your_openai_key
 
-# Dataset paths
-dataset_dir: "data/EgoSchema_test"
-video_dir: "data/EgoSchema_test/videos"
-annotation_file: "data/EgoSchema_test/annotations.json"
-test_video_list_file: "data/EgoSchema_test/video_list.txt"
-
-# Output settings
-output_dir: "results"
-cache_dir: "cache"
-use_cache: true
-
-# Processing
-multi_process: true
-max_processes: 10
-max_test_videos: -1
+# Optional: Custom API base URL
+AIML_BASE_URL=https://api.aimlapi.com/v1
 ```
 
 ### Supported Models
 
-The system supports any OpenAI-compatible API. Common options include:
+The agent supports any OpenAI-compatible API. Recommended models:
 
-**Vision Models** (for viewer_model - must support image input):
-- `gpt-4o`, `gpt-4o-mini` - OpenAI
-- `anthropic/claude-4.5-sonnet` - Anthropic
-- `google/gemini-2.5-flash` - Google
-- `x-ai/grok-4-1-fast-non-reasoning` - xAI
-- `alibaba/qwen-vl-max-latest` - Alibaba
+| Model | Provider | Use Case |
+|-------|----------|----------|
+| `gpt-4o-mini` | OpenAI | Good value, fast |
+| `x-ai/grok-4-1-fast-reasoning` | xAI | Fast reasoning |
+| `anthropic/claude-4-sonnet` | Anthropic | Strong reasoning |
+| `google/gemini-2.5-flash` | Google | Fast, 1M context |
 
-**Text Models** (for scheduler_model):
-- Any of the vision models above
-- `deepseek/deepseek-chat` - DeepSeek
-- `alibaba/qwen-turbo-latest` - Alibaba
+## Extending VideoAgent
 
-See `configs/models.yaml` or `scripts/template/eval.sh` for full model list with pricing.
+### Adding New Tools
 
-## Output Structure
+1. Create interface class in `tools/interface/`:
 
-Each experiment creates a directory with the following structure:
+```python
+from tools.interface_base import Interface, InterfaceCategory
 
-```
-results/<EXPERIMENT_NAME>__<SCHEDULER>_viewer_<VIEWER>_numbers_<COUNT>/
-├── logging.log           # Full evaluation log
-├── result.json           # Detailed results with Q&A
-├── metrics.csv           # Performance metrics table
-├── summary.txt           # Human-readable summary with case analysis
-├── accuracy.txt          # Quick accuracy reference
-├── experiment_config.yaml
-└── videos/
-    └── [video_id]/
-        ├── frames/       # Sampled frames
-        ├── memory.txt    # Video memory state
-        ├── question.txt  # Question with options
-        └── result.json   # Per-video result
-```
-
-### Key Metrics
-
-| Metric | Description |
-|--------|-------------|
-| Accuracy | Final answer accuracy |
-| First Round Accuracy | Accuracy after first round only |
-| Improvement Rate | % of initially wrong answers that became correct |
-| Case Types | MAINTAINED, IMPROVED, DEGRADED, FAILED |
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      VideoAgent                             │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐  │
-│  │   Caption    │    │   Question   │    │    Video     │  │
-│  │  Processor   │    │  Processor   │    │   Memory     │  │
-│  │  (Viewer)    │    │ (Scheduler)  │    │              │  │
-│  └──────────────┘    └──────────────┘    └──────────────┘  │
-│         │                   │                   │           │
-│         └───────────────────┼───────────────────┘           │
-│                             │                               │
-│                    ┌────────▼────────┐                      │
-│                    │   AIMLClient    │                      │
-│                    │   (LLM API)     │                      │
-│                    └─────────────────┘                      │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
+class MyNewTool(Interface):
+    NAME = "my_new_tool"
+    CATEGORY = InterfaceCategory.DETECTION
+    FUNCTIONALITY = "What this tool does"
+    
+    AGENT_NAME = "my_new_tool"
+    AGENT_DESCRIPTION = "Description for agent"
+    AGENT_INPUT_SCHEMA = {
+        "query": {"type": "str", "required": True, "description": "Input query"}
+    }
+    
+    def __call__(self, video, query, **kwargs):
+        # Implementation
+        return {"result": "..."}
+    
+    @classmethod
+    def format_output_for_agent(cls, output):
+        return output["result"]
 ```
 
-### Processing Pipeline
+2. Register in `tools/interface/__init__.py`:
 
-1. **Initialization**: Load video, sample initial frames
-2. **Caption Generation**: Generate multi-level captions for sampled frames
-3. **Question Answering**: Answer question based on video memory
-4. **Confidence Evaluation**: Assess answer confidence (1-3 scale)
-5. **Iteration**: If confidence < 3 and rounds < max_rounds:
-   - Generate segment resampling strategy
-   - Sample additional frames from relevant segments
-   - Return to step 2
-6. **Result**: Return final answer with analysis
+```python
+INTERFACE_MAPPING["my_new_tool"] = MyNewTool
+```
+
+3. Enable in evaluation script:
+
+```bash
+TOOLS="temporal_sample_frames,my_new_tool"
+```
+
+## Acknowledgments
+
+- [EgoSchema](https://egoschema.github.io/) - Benchmark dataset
+- [LangGraph](https://github.com/langchain-ai/langgraph) - Agent framework
+- [InternVideo2.5](https://github.com/OpenGVLab/InternVideo) - Video understanding
+- [VideoTree](https://github.com/Ziyang412/VideoTree) - Frame sampling
+- [TStar](https://github.com/TStar-Labs/TStar) - Temporal-spatial understanding
 
 ## License
 
 This project is for research purposes.
-
-## Acknowledgments
-
-- [EgoSchema](https://egoschema.github.io/) for the benchmark dataset
-- [AIML API](https://aimlapi.com/) for unified LLM API access
-

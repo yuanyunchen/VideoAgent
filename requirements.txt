@@ -1,22 +1,57 @@
 # VideoAgent Requirements
-# Core dependencies for video analysis and LLM integration
+# Core dependencies for video understanding agent
 
+# ============================================================
 # LLM API Integration
+# ============================================================
 openai>=1.3.0
+python-dotenv>=1.0.0
 
+# ============================================================
+# Agent Framework
+# ============================================================
+langgraph>=0.2.0
+
+# ============================================================
 # Video Processing
+# ============================================================
 opencv-python>=4.8.0
 
+# ============================================================
 # Scientific Computing
+# ============================================================
 numpy>=1.24.0
 
+# ============================================================
 # Configuration Management
+# ============================================================
 PyYAML>=6.0
 
+# ============================================================
 # Progress Tracking
+# ============================================================
 tqdm>=4.65.0
 
-# Development dependencies (optional)
-# pytest>=7.0.0
-# black>=23.0.0
-# isort>=5.12.0
+# ============================================================
+# GPU/Deep Learning (for local tools)
+# ============================================================
+# Install separately based on your CUDA version:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+# torch>=2.0.0
+# torchvision>=0.15.0
+# transformers>=4.30.0
+
+# ============================================================
+# Optional: Local Tool Dependencies
+# ============================================================
+# These are required only if using local tools (not API-based)
+# Install as needed based on which tools you enable:
+#
+# For OmniCaptioner (caption_image):
+#   pip install accelerate>=0.20.0
+#
+# For YOLO-World (detect_objects):
+#   pip install ultralytics>=8.0.0
+#
+# For InternVideo2.5 (internvideo_general_qa):
+#   See tools/models/InternVideo2_5_Chat_8B/README.md

@@ -1,148 +1,234 @@
 #!/bin/bash
 
 ################################################################################
-# VideoAgent Multi-Agent Evaluation Script Template
+# VideoAgent Multi-Tools Agent Evaluation Script
 #
-# This script runs video question answering experiments with the new multi-agent
-# architecture featuring:
-#   - Solver Agent (stateful): Decision making and answer generation
-#   - Viewer Agent: Frame caption generation (requires vision model)
-#   - Checker Agent (stateless): Confidence evaluation and feedback
+# This script runs video question answering experiments with the LangGraph-based
+# multi-tools agent architecture featuring:
+#   - ReAct-style tool selection and execution
+#   - Text-first architecture (agent sees captions, not images)
+#   - Configurable tool set
+#   - Auto-caption pipeline for frame-returning tools
+#   - Multi-GPU resource management
 #
 # Output Structure:
-#   results/<ROUND_NAME>__<SCHEDULER>_viewer_<VIEWER>_videos_<COUNT>_<MMDD>/
-#     - logging.log     : Full evaluation log
-#     - metrics.csv     : Performance metrics
-#     - summary.txt     : Human-readable summary
-#     - result.json     : Full results with per-video details
-#     - accuracy.txt    : Quick accuracy summary
-#     - videos/         : Per-video outputs with frames and logs
+#   results/<EXPERIMENT_NAME>__<MODEL>_videos_<COUNT>_<MMDD>/
+#     - logging.log        : Full evaluation log with tool calls
+#     - metrics.csv        : Performance metrics
+#     - summary.txt        : Human-readable summary
+#     - result.json        : Full results with per-video details
+#     - accuracy.txt       : Quick accuracy summary
+#     - experiment_config.yaml : Configuration used
 #
 ################################################################################
+
+################################################################################
+# GPU Configuration
+################################################################################
+# Set visible GPUs (comma-separated, e.g., "0,1" for two GPUs)
+export CUDA_VISIBLE_DEVICES=0
 
 ################################################################################
 # Model Configuration
 #
 # Price Source: https://aimlapi.com/ai-ml-api-pricing
-# Full model list: configs/models.yaml
 # Last Updated: 2025-12
 #
 # ============================================================================
-# VISION MODELS (support image input) - Required for VIEWER
+# TEXT/REASONING MODELS - For Agent LLM
 # ============================================================================
 #
 # API Model Name                        | Price ($/1M)    | Notes
 # --------------------------------------|-----------------|------------------
-# gpt-4o                                | $2.50/$10.00    | Excellent quality
-# gpt-4o-mini                           | $0.15/$0.60     | Best value (default)
-# x-ai/grok-4-1-fast-non-reasoning      | $0.210/$0.530   | Vision + fast
-# x-ai/grok-4-1-fast-reasoning          | $0.210/$0.530   | Vision + thinking
-# google/gemini-2.5-flash               | $0.32/$2.63     | Fast, 1M context
-# alibaba/qwen-vl-max-latest            | $0.40/$1.20     | Strong visual
-#
-# ============================================================================
-# TEXT/REASONING MODELS - For SCHEDULER and CHECKER
-# ============================================================================
-#
-# API Model Name                        | Price ($/1M)    | Notes
-# --------------------------------------|-----------------|------------------
-# gpt-4o-mini                           | $0.15/$0.60     | Good value
+# gpt-4o-mini                           | $0.15/$0.60     | Good value (default)
 # x-ai/grok-4-1-fast-non-reasoning      | $0.210/$0.530   | Fast
-# x-ai/grok-4-1-fast-reasoning          | $0.210/$0.530   | With thinking
+# google/gemini-2.5-flash               | $0.32/$2.63     | Fast, 1M context
 # deepseek/deepseek-chat                | $0.14/$0.28     | Budget option
-# alibaba/qwen3-235b-a22b-thinking-2507 | $0.242/$2.415   | Best reasoning
 #
 ################################################################################
 
 # ============================================================================
 # MODEL CONFIGURATION
 # ============================================================================
-# Scheduler: Solver agent - makes decisions (retrieve frames or answer)
-# Viewer:    Caption agent - generates frame captions (MUST support vision!)
-# Checker:   Evaluation agent - assesses answer confidence (1-10 scale)
+
+# Agent model (for decision making - which tool to call or what answer to give)
+AGENT_MODEL="x-ai/grok-4-1-fast-reasoning"
+
+# ============================================================================
+# TOOLS CONFIGURATION
+# ============================================================================
+# Available tools (from tools/interface/):
+#   - caption_image              : Generate caption for frame(s) [OmniCaptioner]
+#   - view_frame                 : View specific frame (returns caption)
+#   - temporal_sample_frames     : Sample diverse frames (returns captions)
+#   - temporal_spatial_sample_frames : Find frames with objects (returns captions)
+#   - detect_objects             : Detect specific objects [YOLO-World]
+#   - detect_all_objects         : Detect all objects [YOLOE]
+#   - describe_region            : Describe specific region [DAM]
+#
+# NOTE: Tools that return frames (view_frame, temporal_*_sample_frames) 
+#       automatically caption the frames before returning to agent.
 # ============================================================================
 
-# Scheduler model (for Solver agent - decision making)
-SCHEDULER_MODEL="gpt-4o-mini"
-
-# Viewer model (for caption generation - MUST support vision/images)
-VIEWER_MODEL="gpt-4o-mini"
-
-# Checker model (for confidence evaluation)
-# If not set, defaults to SCHEDULER_MODEL
-CHECKER_MODEL="gpt-4o-mini"
+# Tools to enable (comma-separated list)
+# ============================================================================
+# AVAILABLE TOOLS (from tools/interface/__init__.py INTERFACE_MAPPING):
+# ============================================================================
+#
+# QA Tools - InternVideo2.5-based:
+#   - internvideo_general_qa          : General video Q&A with 128 frames [InternVideo2.5]
+#   - internvideo_description         : Video summary + action timeline [InternVideo2.5]
+#
+# QA Tools - Others:
+#   - temporal_spatial_qa             : Temporal-spatial sub-question QA [TStar]
+#   - general_vqa                     : General visual QA [API-based]
+#   - targeting_vqa                   : Fine-grained visual QA [VStar]
+#
+# Frame Sampling:
+#   - temporal_sample_frames          : Sample diverse frames temporally [VideoTree]
+#   - temporal_spatial_sample_frames  : Find frames with specific objects [TStar]
+#
+# Detection & Description:
+#   - detect_objects                  : Detect specific object categories [YOLO-World]
+#   - detect_all_objects              : Detect all objects without prompts [YOLOE]
+#   - describe_region                 : Describe specific region [DAM]
+#
+# Frame & Caption:
+#   - view_frame                      : View specific frame (returns caption)
+#   - caption_image                   : Generate caption for frames [OmniCaptioner]
+#   - detailed_captioning             : Generate detailed caption via API [MLLM]
+#
+# ============================================================================
+# Notes:
+#   - caption_image is redundant since sampling tools auto-caption frames
+#   - Frame-returning tools (view_frame, temporal_sample_frames, 
+#     temporal_spatial_sample_frames) automatically caption frames before 
+#     returning to agent
+# ============================================================================
+# detect_all_objects,describe_region,temporal_spatial_qa,caption_image,targeting_vqa
+TOOLS="internvideo_general_qa,internvideo_description,general_vqa,temporal_sample_frames,temporal_spatial_sample_frames,detect_objects,view_frame,detailed_captioning"
 
 # ============================================================================
 # EXPERIMENT SETTINGS
 # ============================================================================
 
 # Test round name (used for organizing results)
-ROUND_NAME="evaluation"
+EXPERIMENT_NAME="eval"
 
-# Number of test cases to run (0 or -1 = full dataset)
+# Number of test videos to run (0 or -1 = full dataset)
 COUNT=0
 
-# Maximum rounds of interaction (Solver submits answer, Checker evaluates)
-# Each round: Solver can retrieve frames OR submit answer
-MAX_ROUNDS=5
+# Maximum tool calls per video before forced answer
+MAX_TOOL_CALLS=20
 
-# Confidence threshold (1-10) to accept an answer
-# Higher = stricter, requires more confident answers
-# Recommended: 7-8 for balanced, 9+ for strict
-CONFIDENCE_THRESHOLD=8
+# Maximum parallel tools per agent interaction
+# This controls how many tools the agent can request in a single turn
+# All requested tools will be executed, but this helps manage GPU memory
+MAX_PARALLEL_TOOLS=3
 
-# ============================================================================
-# PROCESSING SETTINGS
-# ============================================================================
+# Number of frames to caption at initialization
+INITIAL_FRAMES=5
 
-# Multiprocessing (1 = sequential, higher = parallel)
-MAX_PROCESSES=1
-
-# Detailed logging (true/false)
+# Detailed console output (true/false)
+# When true: print detailed info during processing
+# When false: only show progress bar
+# Note: Output files always save full details regardless of this setting
 DETAILED="true"
 
-# Cache LLM responses (true/false)
-USE_CACHE="true"
+# ============================================================================
+# MULTIPROCESSING SETTINGS
+# ============================================================================
+# Number of worker processes for parallel video processing.
+#   - 1 = Single process mode (default, same as before)
+#   - >1 = Parallel processing with multiple workers
+#
+# Notes:
+#   - Each worker loads its own tools (requires more GPU memory)
+#   - Use with multiple GPUs for best performance
+#   - Recommended: Set to number of GPUs available
+NUM_WORKERS=1
 
-# Initial frames to sample per video
-INITIAL_FRAMES=5
+# ============================================================================
+# FRAME CONTROL SETTINGS
+# ============================================================================
+# These parameters control frame extraction and sampling limits.
+#
+# MAX_VIEW_FRAMES: Maximum frames for view_frame tool (prevents token overflow)
+#   - Limits how many frames agent can request to view at once
+#   - Higher values = more visual context but more tokens/cost
+#   - Recommended: 4-16
+MAX_VIEW_FRAMES=8
+
+# DEFAULT_SAMPLE_FRAMES: Default number of frames for sampling tools
+#   - Used by temporal_sample_frames and temporal_spatial_sample_frames
+#   - Agent can override this within MIN/MAX limits
+DEFAULT_SAMPLE_FRAMES=5
+
+# MIN_SAMPLE_FRAMES: Minimum frames for sampling tools
+MIN_SAMPLE_FRAMES=2
+
+# MAX_SAMPLE_FRAMES: Maximum frames for sampling tools
+#   - Caps agent's frame request to prevent excessive processing
+MAX_SAMPLE_FRAMES=8
+
+# ============================================================================
+# CAPTIONER CONFIGURATION
+# ============================================================================
+# Captioner for generating frame descriptions.
+#
+# Options:
+#   - "omni-captioner"  : Use local OmniCaptioner model (requires GPU memory)
+#   - "<model_name>"    : Use API-based MLLM captioning (e.g., "gpt-4o-mini", "gpt-4o")
+#
+# API captioning uses less memory but costs API credits.
+# ============================================================================
+
+CAPTIONER="omni-captioner"
 
 ################################################################################
 # Advanced Settings (usually don't need to change)
-
-# Configuration file to use as base
-CONFIG="default"
 
 # Dataset paths
 VIDEO_LIST="data/EgoSchema_test/video_list.txt"
 ANNOTATION_FILE="data/EgoSchema_test/annotations.json"
 VIDEO_DIR="data/EgoSchema_test/videos"
 
+# Output directory
+OUTPUT_DIR="results"
+
 ################################################################################
 # Environment Setup
 
+# Get script directory and find project root by looking for .env file
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$SCRIPT_DIR"
+
+# Traverse up to find project root (where .env file exists)
+while [ "$PROJECT_ROOT" != "/" ] && [ ! -f "$PROJECT_ROOT/.env" ]; do
+    PROJECT_ROOT="$(cd "$PROJECT_ROOT/.." && pwd)"
+done
+
+# Change to project root to ensure relative paths work
+cd "$PROJECT_ROOT" || exit 1
+
 # Load environment variables from .env if it exists
-if [ -f .env ]; then
+ENV_FILE="$PROJECT_ROOT/.env"
+if [ -f "$ENV_FILE" ]; then
     set -a
-    source .env
+    . "$ENV_FILE"
     set +a
 fi
 
 # Check if API key is set
-if [ -z "$AIML_API_KEY" ]; then
-    echo "[ERROR] AIML_API_KEY environment variable is not set."
-    echo "Please set it in your .env file or export it directly:"
+if [ -z "$AIML_API_KEY" ] && [ -z "$OPENAI_API_KEY" ]; then
+    echo "[ERROR] No API key found."
+    echo "Please set AIML_API_KEY or OPENAI_API_KEY in your .env file:"
     echo "  export AIML_API_KEY=your_api_key_here"
     exit 1
 fi
 
 ################################################################################
 # Derived Settings (auto-computed)
-
-# Use SCHEDULER_MODEL for checker if not specified
-if [ -z "$CHECKER_MODEL" ]; then
-    CHECKER_MODEL="$SCHEDULER_MODEL"
-fi
 
 # Convert count for CLI (0 means use all, -1 means all)
 if [ "$COUNT" -eq 0 ] || [ "$COUNT" -eq -1 ]; then
@@ -151,41 +237,45 @@ else
     MAX_VIDEOS="$COUNT"
 fi
 
-# Set logging based on detailed mode
-if [ "$DETAILED" = "true" ]; then
-    LLM_LOGGING="--llm-logging"
-else
-    LLM_LOGGING=""
-fi
-
-# Set cache flag
-if [ "$USE_CACHE" = "true" ]; then
-    CACHE_FLAG=""
-else
-    CACHE_FLAG="--no-cache"
-fi
-
 ################################################################################
 # Print Configuration Summary
 
 echo "============================================================"
-echo "VideoAgent Multi-Agent Evaluation"
+echo "VideoAgent Multi-Tools Agent Evaluation"
 echo "============================================================"
 echo ""
-echo "Models:"
-echo "  Scheduler (Solver):  $SCHEDULER_MODEL"
-echo "  Viewer (Caption):    $VIEWER_MODEL"
-echo "  Checker (Evaluate):  $CHECKER_MODEL"
+echo "Agent Model: $AGENT_MODEL"
+echo ""
+echo "Enabled Tools:"
+# POSIX-compatible tool list parsing
+OLD_IFS="$IFS"
+IFS=','
+for tool in $TOOLS; do
+    echo "  - $tool"
+done
+IFS="$OLD_IFS"
 echo ""
 echo "Settings:"
-echo "  Round Name:          $ROUND_NAME"
-echo "  Count:               $COUNT (MAX_VIDEOS=$MAX_VIDEOS)"
-echo "  Max Rounds:          $MAX_ROUNDS"
-echo "  Confidence:          $CONFIDENCE_THRESHOLD/10"
-echo "  Initial Frames:      $INITIAL_FRAMES"
-echo "  Max Processes:       $MAX_PROCESSES"
-echo "  Detailed:            $DETAILED"
-echo "  Use Cache:           $USE_CACHE"
+echo "  Experiment Name:   $EXPERIMENT_NAME"
+echo "  Count:             $COUNT (MAX_VIDEOS=$MAX_VIDEOS)"
+echo "  Max Tool Calls:    $MAX_TOOL_CALLS"
+echo "  Max Parallel Tools: $MAX_PARALLEL_TOOLS"
+echo "  Initial Frames:    $INITIAL_FRAMES"
+echo "  Num Workers:       $NUM_WORKERS"
+echo "  Detailed Output:   $DETAILED"
+echo ""
+echo "Frame Control:"
+echo "  Max View Frames:   $MAX_VIEW_FRAMES"
+echo "  Sample Frames:     $MIN_SAMPLE_FRAMES - $MAX_SAMPLE_FRAMES (default: $DEFAULT_SAMPLE_FRAMES)"
+echo ""
+echo "Captioner:"
+if [ "$CAPTIONER" = "omni-captioner" ]; then
+    echo "  Type:  Local OmniCaptioner"
+    echo "  Model: U4R/OmniCaptioner"
+else
+    echo "  Type:  API-based MLLM"
+    echo "  Model: $CAPTIONER"
+fi
 echo ""
 echo "============================================================"
 echo ""
@@ -196,22 +286,25 @@ echo ""
 echo "[INFO] Starting evaluation at $(date '+%Y-%m-%d %H:%M:%S')"
 echo ""
 
-python -m video_agent.cli \
-    --config "$CONFIG" \
-    --experiment-name "$ROUND_NAME" \
-    --scheduler-model "$SCHEDULER_MODEL" \
-    --viewer-model "$VIEWER_MODEL" \
-    --checker-model "$CHECKER_MODEL" \
-    --video-list "$VIDEO_LIST" \
+python -m video_agent_tools.cli \
+    --model "$AGENT_MODEL" \
+    --tools "$TOOLS" \
+    --max-tool-calls "$MAX_TOOL_CALLS" \
+    --max-parallel-tools "$MAX_PARALLEL_TOOLS" \
+    --initial-frames "$INITIAL_FRAMES" \
+    --max-view-frames "$MAX_VIEW_FRAMES" \
+    --default-sample-frames "$DEFAULT_SAMPLE_FRAMES" \
+    --min-sample-frames "$MIN_SAMPLE_FRAMES" \
+    --max-sample-frames "$MAX_SAMPLE_FRAMES" \
+    --num-workers "$NUM_WORKERS" \
+    --captioner "$CAPTIONER" \
     --annotation-file "$ANNOTATION_FILE" \
     --video-dir "$VIDEO_DIR" \
+    --video-list "$VIDEO_LIST" \
     --max-videos "$MAX_VIDEOS" \
-    --max-rounds "$MAX_ROUNDS" \
-    --confidence-threshold "$CONFIDENCE_THRESHOLD" \
-    --initial-frames "$INITIAL_FRAMES" \
-    --max-processes "$MAX_PROCESSES" \
-    $LLM_LOGGING \
-    $CACHE_FLAG
+    --output-dir "$OUTPUT_DIR" \
+    --experiment-name "$EXPERIMENT_NAME" \
+    --detailed "$DETAILED"
 
 EXIT_CODE=$?
 
@@ -224,15 +317,15 @@ if [ $EXIT_CODE -eq 0 ]; then
     echo ""
     
     # Find and display the output directory
-    OUTPUT_DIR=$(ls -td results/${ROUND_NAME}__* 2>/dev/null | head -1)
-    if [ -n "$OUTPUT_DIR" ]; then
-        echo "Output directory: $OUTPUT_DIR"
+    OUTPUT_PATH=$(ls -td ${OUTPUT_DIR}/${EXPERIMENT_NAME}__* 2>/dev/null | head -1)
+    if [ -n "$OUTPUT_PATH" ]; then
+        echo "Output directory: $OUTPUT_PATH"
         echo ""
         
         # Display summary if exists
-        if [ -f "$OUTPUT_DIR/summary.txt" ]; then
+        if [ -f "$OUTPUT_PATH/summary.txt" ]; then
             echo "--- Summary ---"
-            cat "$OUTPUT_DIR/summary.txt"
+            cat "$OUTPUT_PATH/summary.txt"
             echo ""
         fi
     fi
@@ -242,3 +335,4 @@ else
 fi
 
 echo "============================================================"
+
