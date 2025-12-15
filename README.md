@@ -142,23 +142,23 @@ VideoAgent uses a **decoupled architecture** separating the Interface Layer from
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                         Agent Layer                               │
-│   (Sees only tool descriptions, input schemas, formatted output)  │
+│                         Agent Layer                              │
+│   (Sees only tool descriptions, input schemas, formatted output) │
 └──────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
 ┌──────────────────────────────────────────────────────────────────┐
-│                      Interface Layer (tools/interface/)           │
+│                      Interface Layer (tools/interface/)          │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐   │
-│  │ AGENT_NAME      │  │ AGENT_DESCRIPTION│  │ AGENT_INPUT_    │   │
-│  │ AGENT_DESCRIPTION│  │ AGENT_INPUT_    │  │ SCHEMA          │   │
+│  │ AGENT_NAME      │  │AGENT_DESCRIPTION│  │ AGENT_INPUT_    │   │
+│  │AGENT_DESCRIPTION│  │ AGENT_INPUT_    │  │ SCHEMA          │   │
 │  │ format_output() │  │ SCHEMA          │  │ format_output() │   │
 │  └─────────────────┘  └─────────────────┘  └─────────────────┘   │
 └──────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
 ┌──────────────────────────────────────────────────────────────────┐
-│                       Model Layer (tools/models/)                 │
+│                      Model Layer (tools/models/)                 │
 │  InternVideo2.5 | VideoTree | TStar | YOLO-World | DAM | ...     │
 └──────────────────────────────────────────────────────────────────┘
 ```
