@@ -1,4 +1,4 @@
-# VideoAgent
+# VideoAgent Tutorial
 
 A multi-tool video understanding agent built with LangGraph for long-form video question answering.
 
