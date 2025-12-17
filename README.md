@@ -391,6 +391,119 @@ OPENAI_API_KEY=your_openai_key
 - [YOLO-World](https://github.com/AILab-CVC/YOLO-World) - Open-vocabulary detection
 - [DAM](https://github.com/tsinghua-fib-lab/Describe-Anything-Model) - Region description
 
+
+## Troubleshooting
+
+### Installation Issues
+
+#### CUDA Version Mismatch
+```bash
+# Check your CUDA version
+nvcc --version
+
+# Install matching PyTorch version
+# For CUDA 11.8:
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+# For CUDA 12.1:
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+```
+
+#### Out of Memory (OOM) Errors
+- **InternVideo2.5**: Requires ~16GB VRAM. Use `--num-workers 1` to limit parallel processing
+- **Multiple tools**: Reduce `--max-parallel-tools` to 1-2
+- **Large videos**: The system automatically samples frames; if OOM persists, reduce `--initial-frames`
+
+```bash
+# Memory-constrained configuration
+python -m video_agent_tools.cli \
+    --num-workers 1 \
+    --max-parallel-tools 1 \
+    --initial-frames 3 \
+    ...
+```
+
+#### Model Loading Failures
+```bash
+# Ensure git-lfs is installed for large model files
+git lfs install
+git lfs pull
+
+# Verify model checksums
+cd tools/models/InternVideo2_5_Chat_8B
+git lfs fsck
+```
+
+### API Issues
+
+#### API Key Not Found
+```bash
+# Check .env file exists and is formatted correctly
+cat .env
+# Should show: AIML_API_KEY=your_key_here
+
+# Verify environment variable is loaded
+python -c "import os; print(os.getenv('AIML_API_KEY', 'NOT SET'))"
+```
+
+#### Rate Limiting
+- The system implements automatic retry with exponential backoff
+- For high-volume evaluation, consider:
+  - Reducing `--num-workers`
+  - Using a higher-tier API plan
+  - Implementing request batching
+
+#### Timeout Errors
+API calls use default timeouts from the OpenAI client. If experiencing timeouts, consider:
+- Using a more responsive model endpoint
+- Reducing `--max-parallel-tools` to lower concurrent API calls
+- Checking network connectivity to API endpoint
+
+### Runtime Issues
+
+#### Video Not Found
+```bash
+# Verify video directory structure
+ls data/EgoSchema_test/videos/
+# Should contain .mp4 files
+
+# Check annotation file references correct paths
+head -5 data/EgoSchema_test/annotations.json
+```
+
+#### Tool Initialization Failures
+```bash
+# Test individual tools
+python -c "from tools.interface import INTERFACE_MAPPING; print(list(INTERFACE_MAPPING.keys()))"
+
+# Initialize specific tool for debugging
+python -c "
+from tools.interface import INTERFACE_MAPPING
+tool = INTERFACE_MAPPING['internvideo_general_qa']()
+tool.initialize()
+print('Tool initialized successfully')
+"
+```
+
+### FAQ
+
+**Q: Can I run without GPU?**
+A: API-only tools (`general_vqa`, `view_frame`, `detailed_captioning`) work on CPU. Local vision models require CUDA.
+
+**Q: How do I resume a failed evaluation?**
+A: Use `--restore-path` pointing to the previous result directory:
+```bash
+python -m video_agent_tools.cli --restore-path results/previous_run/ ...
+```
+Completed videos are loaded and skipped automatically.
+
+**Q: Why is the first run slow?**
+A: Model weights are loaded on first use. Subsequent runs use cached models.
+
+**Q: How do I use a different LLM provider?**
+A: Set `OPENAI_API_KEY` for OpenAI, or configure `AIML_BASE_URL` for other OpenAI-compatible APIs.
+
+---
+
 ## License
 
 This project is for research purposes.
