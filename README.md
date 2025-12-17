@@ -25,6 +25,8 @@ Evaluated on the [EgoSchema](https://egoschema.github.io/) benchmark (500 egocen
 | Tarsier | 68.6% | 128 |
 | **VideoAgent (Ours)** | **70.8%** | **22.5** |
 
+---
+
 ## Architecture
 
 ```
@@ -59,6 +61,8 @@ Evaluated on the [EgoSchema](https://egoschema.github.io/) benchmark (500 egocen
 +-----------------------------------------------------------------------------+
 ```
 
+---
+
 ## Project Structure
 
 ```
@@ -90,6 +94,8 @@ VideoAgent/
 ├── requirements.txt
 └── .env.example
 ```
+
+---
 
 ## Installation
 
@@ -180,6 +186,8 @@ VideoAgent uses a **decoupled architecture** separating the Interface Layer from
 | **Detection** | `detect_objects` | `YOLOWorldDetection` | YOLO-World |
 | | `detect_all_objects` | `YOLOEPromptFreeDetection` | YOLOE |
 
+---
+
 ## Model Setup
 
 Local tools require downloading model weights to `tools/models/`. Each tool interface specifies its required model.
@@ -241,6 +249,9 @@ TOOLS="general_vqa,view_frame,detailed_captioning"
 CAPTIONER="gpt-4o-mini"  # Use API for captioning
 ```
 
+---
+
+
 ## Running Experiments
 
 ### Using Evaluation Script (Recommended)
@@ -290,6 +301,9 @@ python -m video_agent_tools.cli \
 | `--num-workers` | Parallel workers | `1` |
 | `--max-videos` | Number of videos (-1 = all) | `-1` |
 
+---
+
+
 ## Output Structure
 
 ```
@@ -306,6 +320,8 @@ results/<experiment_name>__<model>_videos_<count>_<date>/
         ├── llm.log       # Full LLM interaction log
         └── result.json   # Per-video result
 ```
+
+---
 
 ## Extending VideoAgent
 
@@ -358,6 +374,8 @@ INTERFACE_MAPPING["my_new_tool"] = MyNewTool
 TOOLS="temporal_sample_frames,my_new_tool"
 ```
 
+---
+
 ## Configuration
 
 ### Environment Variables
@@ -381,16 +399,8 @@ OPENAI_API_KEY=your_openai_key
 | `anthropic/claude-4-sonnet` | Anthropic | Strong reasoning |
 | `google/gemini-2.5-flash` | Google | 1M context |
 
-## Acknowledgments
 
-- [EgoSchema](https://egoschema.github.io/) - Benchmark dataset
-- [LangGraph](https://github.com/langchain-ai/langgraph) - Agent framework
-- [InternVideo2.5](https://github.com/OpenGVLab/InternVideo) - Video understanding
-- [VideoTree](https://github.com/Ziyang412/VideoTree) - Frame sampling
-- [TStar](https://github.com/TStar-Labs/TStar) - Temporal-spatial understanding
-- [YOLO-World](https://github.com/AILab-CVC/YOLO-World) - Open-vocabulary detection
-- [DAM](https://github.com/tsinghua-fib-lab/Describe-Anything-Model) - Region description
-
+---
 
 ## Troubleshooting
 
@@ -501,6 +511,19 @@ A: Model weights are loaded on first use. Subsequent runs use cached models.
 
 **Q: How do I use a different LLM provider?**
 A: Set `OPENAI_API_KEY` for OpenAI, or configure `AIML_BASE_URL` for other OpenAI-compatible APIs.
+
+---
+
+
+## Acknowledgments
+
+- [EgoSchema](https://egoschema.github.io/) - Benchmark dataset
+- [LangGraph](https://github.com/langchain-ai/langgraph) - Agent framework
+- [InternVideo2.5](https://github.com/OpenGVLab/InternVideo) - Video understanding
+- [VideoTree](https://github.com/Ziyang412/VideoTree) - Frame sampling
+- [TStar](https://github.com/TStar-Labs/TStar) - Temporal-spatial understanding
+- [YOLO-World](https://github.com/AILab-CVC/YOLO-World) - Open-vocabulary detection
+- [DAM](https://github.com/tsinghua-fib-lab/Describe-Anything-Model) - Region description
 
 ---
 
